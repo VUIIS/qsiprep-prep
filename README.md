@@ -1,4 +1,4 @@
-## 🧠 Getting Data Into BIDS Format
+## Getting Data Into BIDS Format
 
 To use the **QSIPrep** pipeline, your data must first be organized in **BIDS format**.
 
