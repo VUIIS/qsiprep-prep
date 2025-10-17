@@ -36,7 +36,7 @@ Download the b1000 PA from XNAT:
 scans -> bX000apa_fov140 -> nifti + json + bval + bvec
 ```
 
-Then place each in the INPUTS/fmap folder
+Then place in the INPUTS/fmap folder
 
 ---
 
