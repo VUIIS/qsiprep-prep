@@ -3,3 +3,4 @@ BIDS/
 work/
 derivatives/
 freesurfer/
+.DS_Store
