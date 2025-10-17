@@ -78,11 +78,6 @@ docker run --rm -it \
 
 In the above command you can either batch run all of your participants (no need to change anything) or add a `--sub` command to run just one participant
 
-Where:
-- `$SRC_ROOT` = path to your working directory  
-- `$BIDS_ROOT` = path to your BIDS directory  
-- `$BIDSIFY` = src/bidsify/bidsify_qsiprep.py
-
 After bidsify_qsiprep.py, your BIDS folder should contain three subdirectories: `dwi`, `anat`, `fmap`.
 
 🕒 Expected runtime for entire qsiprep container: ~16 hours locally (per participant).
