@@ -87,3 +87,80 @@ Output (under `derivatives/`):
 - **Figures** (e.g., denoising)
 - **Transform files** for MNI conversion
 - **Logs** describing the pipeline steps
+
+### 4️⃣ Running QSIRecon
+
+
+For our purposes, we will be using a custom atlas. This will require the custom atlas to be built and injected into the QSIRecon workflow, similar to what we are doing in the xcp-d processor. The working directory will need a folder that looks like this:
+
+Required structure:
+```
+atlas-name/
+├── atlas-name_dseg.tsv
+├── atlas-name_space-MNI152NLin2009cAsym_dseg.json
+└── atlas-name_space-MNI152NLin2009cAsym_res-0[insert num]_dseg.nii.gz
+```
+
+Per Baxter, this can be done by referencing relevant commits from https://github.com/VUIIS/xcpd-processors/tree/main. We will be using `atlas-MMPthalhipp` https://github.com/VUIIS/xcpd-processors/tree/main/atlases/atlas-MMPthalhipp
+
+
+
+Run the following code to accomplish this and run QSIRecon with a custom atlas (where custom_atlas refers to the relevant commit in xcp-d). `SPEC_DIR` = the yaml file in the `qsirecon_specs` folder. You can make edits to the MRtrix commands QSIRecon performs here.
+
+```bash
+docker run --rm --platform linux/amd64 \
+  -v "${DERIV}":/in:ro \
+  -v "${OUT}":/out \
+  -v "${WORK}":/work \
+  -v "${ATLAS_ROOT}":/custom_atlas:ro \
+  -v "${FS_DIR}":/fsdir:ro \
+  -v "${FS_LICENSE}":/opt/freesurfer/license.txt:ro \
+  -v "${SPEC_DIR}":/specs:ro \
+  -v "$(dirname "${custom_atlas}")":/scripts:ro \
+  --entrypoint /bin/bash \
+  pennlinc/qsirecon:1.0.1 \
+  -lc "set -euxo pipefail; \
+    python /scripts/$(basename "${custom_atlas}") /custom_atlas; \
+    qsirecon /in /out participant \
+      --input-type qsiprep \
+      --recon-spec /specs/mrtrix_hsvs.yaml \
+      --fs-subjects-dir /fsdir \
+      --fs-license-file /opt/freesurfer/license.txt \
+      --datasets /custom_atlas \
+      --atlases MMPthalhipp \
+      --output-resolution 2.0 \
+      --nprocs 12 \
+      --omp-nthreads 12 \
+      --mem 32000 \
+      -w /work \
+      --stop-on-first-crash \
+      -v -v"
+```
+---
+
+If you are using a built-in QSIRecon atlas (e.g., 4S, Brainnetome) run the following code:
+
+```bash
+docker run --rm --platform linux/amd64 \
+  -v "${DERIV}":/in:ro \
+  -v "${OUT}":/out \
+  -v "${WORK}":/work \
+  -v "${FS_DIR}":/fsdir:ro \
+  -v "${FS_LICENSE}":/opt/freesurfer/license.txt:ro \
+  -v "${SPEC_DIR}":/specs:ro \
+  --entrypoint /bin/bash \
+  pennlinc/qsirecon:1.0.1 \
+    /in /out participant \
+    --input-type qsiprep \
+    --recon-spec /specs/mrtrix_hsvs.yaml \
+    --fs-subjects-dir /fsdir \
+    --fs-license-file /opt/freesurfer/license.txt \
+    --atlases 4S156Parcels \
+    --output-resolution 2.0 \
+    --nprocs 12 \
+    --omp-nthreads 12 \
+    --mem 32000 \
+    -w /work \
+    --stop-on-first-crash \
+    -v -v
+```
