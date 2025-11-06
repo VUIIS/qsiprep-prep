@@ -101,7 +101,7 @@ atlas-name/
 └── atlas-name_space-MNI152NLin2009cAsym_res-0[insert num]_dseg.nii.gz
 ```
 
-Per Baxter, this can be done by referencing relevant commits from https://github.com/VUIIS/xcpd-processors/tree/main. We will be using `atlas-MMPthalhipp` https://github.com/VUIIS/xcpd-processors/tree/main/atlases/atlas-MMPthalhipp
+Per Baxter, this can be done by referencing relevant commits from https://github.com/VUIIS/xcpd-processors/tree/main. We will be using `atlas-MMPthalTian` https://github.com/VUIIS/xcpd-processors/tree/main/atlases/atlas-MMPthalTian
 
 
 
@@ -127,7 +127,7 @@ docker run --rm --platform linux/amd64 \
       --fs-subjects-dir /fsdir \
       --fs-license-file /opt/freesurfer/license.txt \
       --datasets /custom_atlas \
-      --atlases MMPthalhipp \
+      --atlases MMPthalTian \
       --output-resolution 2.0 \
       --nprocs 12 \
       --omp-nthreads 12 \
