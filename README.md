@@ -74,8 +74,6 @@ docker run --rm -it \
          --fs-license-file /opt/freesurfer/license.txt'
 ```
 
-In the above command you can either batch run all of your participants (no need to change anything) or add a `--sub` command to run just one participant
-
 After bidsify_qsiprep.py, your BIDS folder should contain three subdirectories: `dwi`, `anat`, `fmap`.
 
 🕒 Expected runtime for entire qsiprep container: ~16 hours locally (per participant).
