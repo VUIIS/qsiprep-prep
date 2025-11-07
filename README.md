@@ -15,7 +15,7 @@ scans -> 201-cs_T1W_3D_TFE_32_channel -> resources -> nifti + json
 Place this file in:
 
 ```
-INPUTS/T1w
+INPUTS/
 ```
 
 ---
@@ -28,7 +28,7 @@ Download the two DWI runs (b1000 AP, b2000 AP) from XNAT:
 scans -> bX000app_fov140 -> nifti + json + bval + bvec
 ```
 
-Then place each in the INPUTS/dwi folder:
+Then place each in the INPUTS/:
 
 Download the b1000 PA from XNAT:
 
@@ -36,43 +36,41 @@ Download the b1000 PA from XNAT:
 scans -> bX000apa_fov140 -> nifti + json + bval + bvec
 ```
 
-Then place in the INPUTS/fmap folder
+Then place in the INPUTS/
 
 ---
 
 ### 3️⃣ FreeSurfer Data
 
 1. Download the FreeSurfer data for your participant from XNAT.
-2. Rename the folder **“files”** to your participant’s ID in this format: `sub-ID`.
-3. Move the renamed folder (and its subdirectories) into the `freesurfer` folder in this repo.
-4. Replace the blank `license.txt` file in this repo with your actual **FreeSurfer license**.
+2. Copy folder the named SUBJECT
+3. Place SUBJECT folder in INPUTS/ 
 
 
 You should now have all required **XNAT files**. Proceed to **BIDSify your data** and run **QSIPrep**:
 
 ```bash
-docker run --rm -it \                           
+docker run --rm -it \                 
   --platform linux/amd64 \
   -v "${INPUTS}":/inputs:ro \
-  -v "${BIDS}":/bids \
-  -v "${DERIV}":/out \
-  -v "${WORK}":/work \
+  -v "${OUTPUTS}":/outputs \
   -v "${FS_LICENSE}":/opt/freesurfer/license.txt:ro \
   -v "$(dirname "${BIDSIFY}")":/scripts:ro \
   --entrypoint /bin/bash \
   pennlinc/qsiprep:1.0.1 \
   -lc 'set -euxo pipefail; \
        python /scripts/'"$(basename "${BIDSIFY}")"' \
-         --inputs-root /inputs \
-         --bids-root /bids && \
-       qsiprep /bids /out participant \
+         --inputs-dir /inputs \
+         --outputs-dir /outputs \
+         --subject '"${SUBJ}"' && \
+       qsiprep /outputs/BIDS /outputs/derivatives participant \
          --stop-on-first-crash \
          --output-resolution 2 \
          --nprocs 12 \
          --write-graph \
          --omp-nthreads 12 \
          --mem 32000 \
-         -w /work \
+         -w /outputs/work \
          --fs-license-file /opt/freesurfer/license.txt'
 ```
 
