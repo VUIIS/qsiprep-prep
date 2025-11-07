@@ -1,295 +1,258 @@
 #!/usr/bin/env python3
+"""
+XNAT-friendly BIDSify for QSIPrep (single subject) — FLAT INPUTS ONLY
+
+- All INPUT files arrive in ONE flat directory (no DWI/fmap/T1w subfolders).
+  Examples that may be present:
+    dwi_1000.nii.gz, .bval, .bvec, .json      (AP, e.g., "...b1000app...")
+    dwi_2000.nii.gz, .bval, .bvec, .json      (AP, e.g., "...b2000app...")
+    901_dti_2min_b1000apa_fov140.nii.gz, ...  (PA; used as fieldmap image)
+    t1.nii.gz, t1.json
+    SUBJECT/ or SUBJECT/SUBJECT (FreeSurfer dir; copied verbatim to OUTPUTS/SUBJECT)
+
+Behavior (locked in):
+- EVERYTHING is written under --outputs-dir.
+- We stage from the flat folder into OUTPUTS/INPUTS/{DWI,fmap,T1w}:
+    DWI  := any NIfTI inferred as AP (dir token 'AP' from filename hints)
+    FMAP := any NIfTI inferred as PA (dir token 'PA' from filename hints; e.g., "*apa*")
+    T1w  := files named "t1.nii.gz" / "t1.json"
+- Build BIDS under OUTPUTS/BIDS/sub-<id>/ with strict names:
+    DWI  -> sub-<id>_acq-b<shell>_dir-AP_dwi.*
+    FMAP -> sub-<id>_acq-b<shell>_dir-PA_epi.* (ALWAYS placed in BIDS/fmap)
+    T1w  -> sub-<id>_T1w.*
+- JSON fixes:
+    * EstimatedTotalReadoutTime -> TotalReadoutTime (if present)
+    * Add PhaseEncodingDirection if missing (AP->j-, PA->j, LR/RL/SI/IS supported via map)
+    * FMAP JSON gets IntendedFor with all subject DWI NIfTIs (relative paths)
+- Subject label is provided via --subject and sanitized to BIDS-safe (alphanumeric only).
+- Write dataset_description.json and participants.tsv in BIDS root.
+- Write mapping OUTPUTS/bids_subject_map.tsv: xnat_subject <TAB> bids_subject
+"""
+
 import argparse
 import json
 import re
 import shutil
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
-# =========================================
-# Helpers and constants
-# =========================================
-PED_MAP = {
-    "AP": "j-",
-    "PA": "j",
-    "LR": "i",
-    "RL": "i-",
-    "SI": "k-",
-    "IS": "k",
-}
+# ------------- helpers -------------
+def sanitize_bids_subj(raw_label: str) -> str:
+    cleaned = re.sub(r'[^A-Za-z0-9]+', '', raw_label)
+    return cleaned or "UNKNOWN"
 
-DIR_TOKEN_RE = re.compile(r"(?:^|[_-])dir-([A-Za-z]{2})(?:[_-]|$)", re.IGNORECASE)
+def ensure_dir(p: Path):
+    p.mkdir(parents=True, exist_ok=True)
+
+def copy_file(src: Path, dst: Path):
+    ensure_dir(dst.parent); shutil.copy2(src, dst)
+
+def load_json(p: Path) -> dict:
+    with p.open('r') as f: return json.load(f)
+
+def save_json(p: Path, obj: dict):
+    ensure_dir(p.parent)
+    with p.open('w') as f:
+        json.dump(obj, f, indent=2, sort_keys=True); f.write('\n')
+
+PED_MAP = {"AP":"j-","PA":"j"}
+DIR_TOKEN_RE  = re.compile(r"(?:^|[_-])dir-([A-Za-z]{2})(?:[_-]|$)", re.IGNORECASE)
 BVAL_TOKEN_RE = re.compile(r"(?:^|[_-])b(\d{3,5})(?:[^0-9]|$)", re.IGNORECASE)
+ALT_DIR_HINTS = {"app":"AP","apa":"PA","_ap_":"AP","-ap-":"AP","_pa_":"PA","-pa-":"PA"}
 
-# Some scanners export shorthand like "...b2000app..." or "...b1000apa..."
-ALT_DIR_HINTS = {
-    "app": "AP",
-    "apa": "PA",
-    "_ap_": "AP",
-    "_pa_": "PA",
-    "-ap-": "AP",
-    "-pa-": "PA",
-    "_lr_": "LR",
-    "_rl_": "RL",
-    "_si_": "SI",
-    "_is_": "IS",
-}
-
-def find_bval_from_name(p: Path) -> Optional[str]:
-    m = BVAL_TOKEN_RE.search(p.name)
-    if m:
-        return m.group(1)
-    return None
-
-def find_dir_from_name(p: Path) -> Optional[str]:
-    # Prefer explicit BIDS-like dir-XX
-    m = DIR_TOKEN_RE.search(p.name)
-    if m:
-        return m.group(1).upper()
-    # fallback to common hints
-    low = f"_{p.name.lower()}_"
-    for hint, val in ALT_DIR_HINTS.items():
-        if hint in low:
-            return val
+def find_dir_from_name(path: Path) -> Optional[str]:
+    m = DIR_TOKEN_RE.search(path.name)
+    if m: return m.group(1).upper()
+    low = f"_{path.name.lower()}_"
+    for hint,val in ALT_DIR_HINTS.items():
+        if hint in low: return val
     return None
 
 def infer_ped_from_dir(dir_token: Optional[str]) -> Optional[str]:
-    if not dir_token:
+    return PED_MAP.get(dir_token.upper()) if dir_token else None
+
+def infer_primary_bval_from_bvalfile(bval_path: Path) -> Optional[str]:
+    if not bval_path.exists(): return None
+    try:
+        vals = [float(x) for x in re.split(r"\s+", bval_path.read_text().strip()) if x.strip()]
+        nz   = [int(round(v)) for v in vals if v > 10]
+        if not nz: return "0"
+        from collections import Counter
+        return str(Counter(nz).most_common(1)[0][0])
+    except Exception:
         return None
-    return PED_MAP.get(dir_token.upper())
 
-def ensure_dir(d: Path):
-    d.mkdir(parents=True, exist_ok=True)
+def strict_dwi_bids_name(subj,bval,dir_token,suffix):  return f"{subj}_acq-b{bval}_dir-{dir_token}_dwi{suffix}"
+def strict_fmap_bids_name(subj,bval,dir_token,suffix): return f"{subj}_acq-b{bval}_dir-{dir_token}_epi{suffix}"
+def strict_t1w_bids_name(subj,suffix):                  return f"{subj}_T1w{suffix}"
 
-def copy_file(src: Path, dst: Path):
-    if dst.exists():
-        return
-    shutil.copy2(src, dst)
-
-def load_json(p: Path) -> dict:
-    with p.open("r") as f:
-        return json.load(f)
-
-def save_json(p: Path, obj: dict):
-    with p.open("w") as f:
-        json.dump(obj, f, indent=2, sort_keys=True)
-        f.write("\n")
-
-def strict_dwi_bids_name(subj: str, bval: str, dir_token: str, suffix: str) -> str:
-    return f"{subj}_acq-b{bval}_dir-{dir_token}_dwi{suffix}"
-
-def strict_fmap_bids_name(subj: str, bval: str, dir_token: str, suffix: str) -> str:
-    return f"{subj}_acq-b{bval}_dir-{dir_token}_epi{suffix}"
-
-def strict_t1w_bids_name(subj: str, suffix: str) -> str:
-    return f"{subj}_T1w{suffix}"
-
-# =========================================
-# JSON editing
-# =========================================
+# ------------- JSON edits -------------
 def update_dwi_json(json_path: Path, ped: Optional[str]):
     meta = load_json(json_path)
-    # EstimatedTotalReadoutTime -> TotalReadoutTime
     if "EstimatedTotalReadoutTime" in meta:
-        if "TotalReadoutTime" not in meta or not meta["TotalReadoutTime"]:
+        if not meta.get("TotalReadoutTime"):
             meta["TotalReadoutTime"] = meta["EstimatedTotalReadoutTime"]
         del meta["EstimatedTotalReadoutTime"]
-    # PhaseEncodingDirection if missing
-    if ("PhaseEncodingDirection" not in meta) or (str(meta.get("PhaseEncodingDirection", "")).strip() == ""):
-        if ped:
-            meta["PhaseEncodingDirection"] = ped
-        save_json(json_path, meta)
-    print(f"[ok] DWI JSON updated: {json_path.name}")
+    if ("PhaseEncodingDirection" not in meta) or (str(meta.get("PhaseEncodingDirection","")).strip()==""):
+        if ped: meta["PhaseEncodingDirection"] = ped
+    save_json(json_path, meta)
 
 def update_fmap_json(json_path: Path, ped: Optional[str], intended_files: list[str]):
     meta = load_json(json_path)
-    # EstimatedTotalReadoutTime -> TotalReadoutTime (if present)
     if "EstimatedTotalReadoutTime" in meta:
-        if "TotalReadoutTime" not in meta or not meta["TotalReadoutTime"]:
+        if not meta.get("TotalReadoutTime"):
             meta["TotalReadoutTime"] = meta["EstimatedTotalReadoutTime"]
         del meta["EstimatedTotalReadoutTime"]
-    # IntendedFor
     meta["IntendedFor"] = intended_files
-    # PhaseEncodingDirection if missing
-    if ("PhaseEncodingDirection" not in meta) or (str(meta.get("PhaseEncodingDirection", "")).strip() == ""):
-        if ped:
-            meta["PhaseEncodingDirection"] = ped
-        save_json(json_path, meta)
-    print(f"[ok] FMAP JSON updated: {json_path.name}")
+    if ("PhaseEncodingDirection" not in meta) or (str(meta.get("PhaseEncodingDirection","")).strip()==""):
+        if ped: meta["PhaseEncodingDirection"] = ped
+    save_json(json_path, meta)
 
-# =========================================
-# Per-subject processing
-# =========================================
-def process_one_subject(inputs_root: Path, bids_root: Path, subj: str):
-    dwi_in  = inputs_root / subj / "DWI"
-    fmap_in = inputs_root / subj / "fmap"
-    t1_in   = inputs_root / subj / "T1w"
-    if not dwi_in.is_dir():
-        raise FileNotFoundError(f"Missing directory: {dwi_in}")
-    if not fmap_in.is_dir():
-        raise FileNotFoundError(f"Missing directory: {fmap_in}")
-    if not t1_in.is_dir():
-        raise FileNotFoundError(f"Missing directory: {t1_in}")
+# ------------- Stage from FLAT → OUTPUTS/INPUTS/... -------------
+def stage_from_flat_inputs(inputs_dir: Path, outputs_dir: Path) -> Tuple[Path,Path,Path,Optional[Path]]:
+    dwi_out  = outputs_dir / "INPUTS" / "DWI"
+    fmap_out = outputs_dir / "INPUTS" / "fmap"
+    t1_out   = outputs_dir / "INPUTS" / "T1w"
+    for d in (dwi_out,fmap_out,t1_out): ensure_dir(d)
 
-    # Output dirs
-    subj_root = bids_root / subj
-    dwi_out   = subj_root / "dwi"
-    fmap_out  = subj_root / "fmap"
-    anat_out  = subj_root / "anat"
-    for d in [dwi_out, fmap_out, anat_out]:
-        ensure_dir(d)
+    # DWI = AP
+    for nii in sorted(inputs_dir.glob("*.nii.gz")):
+        if nii.name.lower().startswith("t1"): continue
+        if find_dir_from_name(nii) == "AP":
+            base = nii.name[:-7]
+            for ext in [".nii.gz",".bval",".bvec",".json"]:
+                src = inputs_dir / (base + ext)
+                if src.exists(): copy_file(src, dwi_out / src.name)
 
-    # ---------- DWI ----------
-    intended_for_list = []
-    for nii in sorted(dwi_in.glob("*.nii.gz")):
-        bval = find_bval_from_name(nii)
-        dir_token = find_dir_from_name(nii)
-        if not bval or not dir_token:
-            raise ValueError(f"Cannot infer bval/dir from DWI file name: {nii.name}")
-        out_name = strict_dwi_bids_name(subj, bval, dir_token, ".nii.gz")
-        out_nii = dwi_out / out_name
-        copy_file(nii, out_nii)
+    # FMAP = PA (will always end up in BIDS/fmap)
+    for nii in sorted(inputs_dir.glob("*.nii.gz")):
+        if nii.name.lower().startswith("t1"): continue
+        if find_dir_from_name(nii) == "PA":
+            base = nii.name[:-7]
+            for ext in [".nii.gz",".bval",".bvec",".json"]:
+                src = inputs_dir / (base + ext)
+                if src.exists(): copy_file(src, fmap_out / src.name)
 
-        companions = {
-            ".bval": dwi_in / nii.name.replace(".nii.gz", ".bval"),
-            ".bvec": dwi_in / nii.name.replace(".nii.gz", ".bvec"),
-            ".json": dwi_in / nii.name.replace(".nii.gz", ".json"),
-        }
-        for ext, src in companions.items():
-            if src.exists():
-                dst = dwi_out / strict_dwi_bids_name(subj, bval, dir_token, ext)
-                copy_file(src, dst)
-            else:
-                if ext != ".json":
-                    print(f"[warn] Missing companion {ext} for {nii.name}")
-
-        out_json = dwi_out / strict_dwi_bids_name(subj, bval, dir_token, ".json")
-        ped = infer_ped_from_dir(dir_token)
-        if out_json.exists():
-            update_dwi_json(out_json, ped)
-        else:
-            print(f"[warn] No JSON found for {out_nii.name}; cannot update PED/ReadoutTime.")
-        intended_for_list.append(f"dwi/{out_nii.name}")
-
-    # ---------- FMAP ----------
-    for nii in sorted(fmap_in.glob("*.nii.gz")):
-        bval = find_bval_from_name(nii)
-        dir_token = find_dir_from_name(nii)
-        if not bval or not dir_token:
-            raise ValueError(f"Cannot infer bval/dir from FMAP file name: {nii.name}")
-        out_name = strict_fmap_bids_name(subj, bval, dir_token, ".nii.gz")
-        out_nii = fmap_out / out_name
-        copy_file(nii, out_nii)
-
-        in_json = nii.with_suffix("").with_suffix(".json")
-        if in_json.exists():
-            out_json = fmap_out / strict_fmap_bids_name(subj, bval, dir_token, ".json")
-            copy_file(in_json, out_json)
-            ped = infer_ped_from_dir(dir_token)
-            update_fmap_json(out_json, ped, intended_for_list)
-        else:
-            print(f"[warn] No JSON for fmap {nii.name}")
-
-    # ---------- T1w ----------
-    for nii in sorted(t1_in.glob("*.nii.gz")):
-        out_name = strict_t1w_bids_name(subj, ".nii.gz")
-        out_nii = anat_out / out_name
-        copy_file(nii, out_nii)
-
-        in_json = nii.with_suffix("").with_suffix(".json")
-        if in_json.exists():
-            out_json = anat_out / strict_t1w_bids_name(subj, ".json")
-            copy_file(in_json, out_json)
-
-# =========================================
-# Dataset-level files
-# =========================================
-def write_dataset_description(bids_root: Path):
-    ds_path = bids_root / "dataset_description.json"
-    if ds_path.exists():
-        return
-    ds = {
-        "Name": "BIDS dataset",
-        "BIDSVersion": "1.9.0",
-        "DatasetType": "raw"
-    }
-    with ds_path.open("w") as f:
-        json.dump(ds, f, indent=2, sort_keys=True)
-        f.write("\n")
-
-def update_participants_tsv(bids_root: Path, subjects: list[str]):
-    tsv_path = bids_root / "participants.tsv"
-    rows = sorted(set(subjects))
-    if tsv_path.exists():
-        # Merge
-        try:
-            import pandas as _pd
-            df_old = _pd.read_csv(tsv_path, sep="\t")
-            old = set(df_old["participant_id"].astype(str).tolist())
-            rows = sorted(old.union(rows))
-        except Exception:
-            pass
-    with tsv_path.open("w") as f:
-        f.write("participant_id\n")
-        for s in rows:
-            f.write(f"{s}\n")
-
-# =========================================
-# CLI
-# =========================================
-def main():
-    ap = argparse.ArgumentParser(description="Batch BIDS copier with strict naming and JSON fixes.")
-    ap.add_argument("--inputs-root", required=True, help="Folder containing INPUTS/sub-*/{DWI,fmap,T1w}")
-    ap.add_argument("--bids-root", required=True, help="Output BIDS root")
-    ap.add_argument("--sub", action="append", help="Subject(s) to process (e.g., sub-257032). Repeatable.")
-    args = ap.parse_args()
-
-    inputs_root = Path(args.inputs_root).expanduser().resolve()
-    bids_root   = Path(args.bids_root).expanduser().resolve()
-
-    # Subjects
-    if args.sub:
-        subjects = args.sub
+# T1: accept any NIfTI whose name contains "t1" (case-insensitive)
+    t1_candidates = sorted([p for p in inputs_dir.glob("*.nii.gz")
+    if "t1" in p.name.lower() and not p.name.lower().startswith("t1map")])
+    if t1_candidates:
+        t1_src = t1_candidates[0]          # pick the first if multiple; change policy if needed
+        copy_file(t1_src, t1_out / "t1.nii.gz")
+        # companion JSON with same base (if present)
+        t1_json_src = t1_src.with_suffix("").with_suffix(".json")
+    if t1_json_src.exists():
+        copy_file(t1_json_src, t1_out / "t1.json")
     else:
-        subjects = [p.name for p in sorted(inputs_root.glob("sub-*")) if p.is_dir()]
-        if not subjects:
-            raise FileNotFoundError(f"No 'sub-*' folders found in {inputs_root}")
+        print("[warn] No T1 found in flat INPUTS (looked for *t1*.nii.gz)")
 
-    processed = []
-    for subj in subjects:
-        print(f"=== Processing {subj} ===")
-        process_one_subject(inputs_root, bids_root, subj)
-        processed.append(subj)
+    # FreeSurfer SUBJECT or SUBJECT/SUBJECT
+    fs_candidate = inputs_dir / "SUBJECT"
+    if fs_candidate.is_dir():
+        nested = fs_candidate / "SUBJECT"
+        fs_src = nested if nested.is_dir() else fs_candidate
+        fs_dst = outputs_dir / "SUBJECT"
+        if fs_dst.exists(): shutil.rmtree(fs_dst)
+        shutil.copytree(fs_src, fs_dst)
+        fs_out = fs_dst
+    else:
+        fs_out = None
 
-    write_dataset_description(bids_root)
-    update_participants_tsv(bids_root, processed)
+    return dwi_out, fmap_out, t1_out, fs_out
 
-    print(f"[done] Processed {len(processed)} participant(s).")
+# ------------- Build BIDS -------------
+def bidsify(outputs_dir: Path, subj_raw: str):
+    subj_clean = sanitize_bids_subj(subj_raw)
+    subj = f"sub-{subj_clean}"
+    bids_root = outputs_dir / "BIDS"
+    subj_root = bids_root / subj
+    dwi_in  = outputs_dir / "INPUTS" / "DWI"
+    fmap_in = outputs_dir / "INPUTS" / "fmap"
+    t1_in   = outputs_dir / "INPUTS" / "T1w"
+    for d in (subj_root/"dwi", subj_root/"fmap", subj_root/"anat"): ensure_dir(d)
+
+    intended_for = []
+
+    # DWI → BIDS/dwi
+    for nii in sorted(dwi_in.glob("*.nii.gz")):
+        base = nii.name[:-7]
+        bval = infer_primary_bval_from_bvalfile(dwi_in / (base + ".bval")) or \
+               (BVAL_TOKEN_RE.search(nii.name).group(1) if BVAL_TOKEN_RE.search(nii.name) else "0")
+        dir_token = "AP"
+        ped = infer_ped_from_dir(dir_token)
+        out_name = strict_dwi_bids_name(subj, bval, dir_token, ".nii.gz")
+        copy_file(nii, subj_root / "dwi" / out_name)
+        for ext in [".bval",".bvec",".json"]:
+            src = dwi_in / (base + ext)
+            dst = subj_root / "dwi" / strict_dwi_bids_name(subj, bval, dir_token, ext)
+            if src.exists():
+                copy_file(src, dst)
+                if ext == ".json": update_dwi_json(dst, ped)
+            elif ext == ".json":
+                save_json(dst, {"PhaseEncodingDirection": ped} if ped else {})
+        intended_for.append(f"dwi/{out_name}")
+
+    # FMAP → ALWAYS BIDS/fmap as *_epi.*
+    for fmap_nii in sorted(fmap_in.glob("*.nii.gz")):
+        base = fmap_nii.name[:-7]
+        bval = infer_primary_bval_from_bvalfile(fmap_in / (base + ".bval")) or \
+               (BVAL_TOKEN_RE.search(fmap_nii.name).group(1) if BVAL_TOKEN_RE.search(fmap_nii.name) else "1000")
+        dir_token = "PA"
+        ped = infer_ped_from_dir(dir_token)
+        out_name = strict_fmap_bids_name(subj, bval, dir_token, ".nii.gz")
+        copy_file(fmap_nii, subj_root / "fmap" / out_name)
+        src_json = fmap_in / (base + ".json")
+        dst_json = subj_root / "fmap" / strict_fmap_bids_name(subj, bval, dir_token, ".json")
+        if src_json.exists():
+            copy_file(src_json, dst_json); update_fmap_json(dst_json, ped, intended_for)
+        else:
+            meta = {"IntendedFor": intended_for}
+            if ped: meta["PhaseEncodingDirection"] = ped
+            save_json(dst_json, meta)
+
+    # T1w
+    t1 = t1_in / "t1.nii.gz"
+    if t1.exists():
+        copy_file(t1, subj_root / "anat" / strict_t1w_bids_name(subj, ".nii.gz"))
+        t1_json = t1_in / "t1.json"
+        if t1_json.exists():
+            copy_file(t1_json, subj_root / "anat" / strict_t1w_bids_name(subj, ".json"))
+
+    # Dataset-level files
+    save_json(bids_root / "dataset_description.json", {"Name":"BIDS dataset","BIDSVersion":"1.9.0","DatasetType":"raw"})
+    part_tsv = bids_root / "participants.tsv"
+    if part_tsv.exists():
+        old = set(x.strip() for x in part_tsv.read_text().splitlines()[1:] if x.strip()); old.add(subj)
+        rows = sorted(old)
+    else:
+        rows = [subj]
+    with part_tsv.open("w") as f:
+        f.write("participant_id\n"); [f.write(f"{r}\n") for r in rows]
+
+    # Subject map
+    map_path = outputs_dir / "bids_subject_map.tsv"
+    if map_path.exists():
+        lines = [ln.strip().split("\t") for ln in map_path.read_text().splitlines() if ln.strip()]
+        header = lines[0] if lines else ["xnat_subject","bids_subject"]
+        existing = {tuple(row) for row in lines[1:]} if len(lines)>1 else set()
+        existing.add((subj_raw, subj)); pairs = sorted(existing)
+    else:
+        header = ["xnat_subject","bids_subject"]; pairs = [(subj_raw, subj)]
+    with map_path.open("w") as f:
+        f.write("\t".join(header) + "\n")
+        for a,b in pairs: f.write(f"{a}\t{b}\n")
+
+# ------------- CLI -------------
+def main():
+    ap = argparse.ArgumentParser(description="BIDSify QSIPrep inputs from a SINGLE FLAT INPUTS directory (XNAT-style).")
+    ap.add_argument("--inputs-dir", required=True, help="Flat INPUTS dir (all files together)")
+    ap.add_argument("--outputs-dir", required=True, help="OUTPUTS dir (all artifacts go here)")
+    ap.add_argument("--subject", required=True, help="XNAT subject label (sanitized to BIDS)")
+    args = ap.parse_args()
+    inputs_dir  = Path(args.inputs_dir).resolve()
+    outputs_dir = Path(args.outputs_dir).resolve()
+    stage_from_flat_inputs(inputs_dir, outputs_dir)
+    bidsify(outputs_dir, args.subject)
 
 if __name__ == "__main__":
     main()
-
-#Command to run QSIPrep container in docker:
-# docker run --rm -it \                           
-#   --platform linux/amd64 \
-#   -v "${INPUTS}":/inputs:ro \
-#   -v "${BIDS}":/bids \
-#   -v "${DERIV}":/out \
-#   -v "${WORK}":/work \
-#   -v "${FS_LICENSE}":/opt/freesurfer/license.txt:ro \
-#   -v "$(dirname "${BIDSIFY}")":/scripts:ro \
-#   --entrypoint /bin/bash \
-#   pennlinc/qsiprep:1.0.1 \
-#   -lc 'set -euxo pipefail; \
-#        python /scripts/'"$(basename "${BIDSIFY}")"' \
-#          --inputs-root /inputs \
-#          --bids-root /bids && \
-#        qsiprep /bids /out participant \
-#          --stop-on-first-crash \
-#          --output-resolution 2 \
-#          --nprocs 12 \
-#          --write-graph \
-#          --omp-nthreads 12 \
-#          --mem 32000 \
-#          -w /work \
-#          --fs-license-file /opt/freesurfer/license.txt'

@@ -4,3 +4,5 @@ work/
 derivatives/
 freesurfer/
 .DS_Store
+OUTPUTS/
+.DS_Store
