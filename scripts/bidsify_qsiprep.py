@@ -127,56 +127,60 @@ def update_fmap_json(json_path: Path, ped: Optional[str], intended_files: list[s
     save_json(json_path, meta)
 
 # ------------- Stage from FLAT → OUTPUTS/INPUTS/... -------------
-def stage_from_flat_inputs(inputs_dir: Path, outputs_dir: Path) -> Tuple[Path,Path,Path,Optional[Path]]:
+def stage_from_flat_inputs(
+        dwi_niigzs: list,
+        rpe_niigz: str,
+        t1_niigz: str,
+        fs_dir: str,
+        outputs_dir: Path
+        ) -> Tuple[Path,Path,Path,Optional[Path]]:
+
     dwi_out  = outputs_dir / "INPUTS" / "DWI"
     fmap_out = outputs_dir / "INPUTS" / "fmap"
     t1_out   = outputs_dir / "INPUTS" / "T1w"
     for d in (dwi_out,fmap_out,t1_out): ensure_dir(d)
 
-    # DWI = AP
-    for nii in sorted(inputs_dir.glob("*.nii.gz")):
-        if nii.name.lower().startswith("t1"): continue
-        if find_dir_from_name(nii) == "AP":
-            base = nii.name[:-7]
-            for ext in [".nii.gz",".bval",".bvec",".json"]:
-                src = inputs_dir / (base + ext)
-                if src.exists(): copy_file(src, dwi_out / src.name)
+    # DWI
+    for nii in dwi_niigzs:
+        rnii = Path(nii).resolve()
+        dbase = rnii.parent
+        fbase = rnii.name[:-7]
+        for ext in [".nii.gz",".bval",".bvec",".json"]:
+            src = fbase + ext
+            if src.exists(): 
+                copy_file(dbase / src, dwi_out / src.name)
+            else:
+                raise Exception(f'Missing input file {dbase / src}')
 
-    # FMAP = PA (will always end up in BIDS/fmap)
-    for nii in sorted(inputs_dir.glob("*.nii.gz")):
-        if nii.name.lower().startswith("t1"): continue
-        if find_dir_from_name(nii) == "PA":
-            base = nii.name[:-7]
-            for ext in [".nii.gz",".bval",".bvec",".json"]:
-                src = inputs_dir / (base + ext)
-                if src.exists(): copy_file(src, fmap_out / src.name)
+    # RPE/FMAP
+    rnii = Path(rpe_niigz).resolve()
+    dbase = rnii.parent
+    fbase = rnii.name[:-7]
+    for ext in [".nii.gz",".bval",".bvec",".json"]:
+        src = fbase + ext
+        if src.exists(): 
+            copy_file(dbase / src, fmap_out / src.name)
+        else:
+            raise Exception(f'Missing input file {dbase / src}')
 
-# T1: accept any NIfTI whose name contains "t1" (case-insensitive)
-    t1_candidates = sorted([p for p in inputs_dir.glob("*.nii.gz")
-    if "t1" in p.name.lower() and not p.name.lower().startswith("t1map")])
-    if t1_candidates:
-        t1_src = t1_candidates[0]          # pick the first if multiple; change policy if needed
-        copy_file(t1_src, t1_out / "t1.nii.gz")
-        # companion JSON with same base (if present)
-        t1_json_src = t1_src.with_suffix("").with_suffix(".json")
-    if t1_json_src.exists():
-        copy_file(t1_json_src, t1_out / "t1.json")
-    else:
-        print("[warn] No T1 found in flat INPUTS (looked for *t1*.nii.gz)")
+    # T1
+    rnii = Path(t1_niigz).resolve()
+    dbase = rnii.parent
+    fbase = rnii.name[:-7]
+    for ext in [".nii.gz",".bval",".bvec",".json"]:
+        src = fbase + ext
+        if src.exists(): 
+            copy_file(dbase / src, t1_out / src.name)
+        else:
+            raise Exception(f'Missing input file {dbase / src}')
 
     # FreeSurfer SUBJECT or SUBJECT/SUBJECT
-    fs_candidate = inputs_dir / "SUBJECT"
-    if fs_candidate.is_dir():
-        nested = fs_candidate / "SUBJECT"
-        fs_src = nested if nested.is_dir() else fs_candidate
-        fs_dst = outputs_dir / "SUBJECT"
-        if fs_dst.exists(): shutil.rmtree(fs_dst)
-        shutil.copytree(fs_src, fs_dst)
-        fs_out = fs_dst
-    else:
-        fs_out = None
+    fs_src = Path(fs_dir).resolve()
+    fs_out = outputs_dir / "SUBJECT"
+    shutil.copytree(fs_src, fs_out)
 
     return dwi_out, fmap_out, t1_out, fs_out
+
 
 # ------------- Build BIDS -------------
 def bidsify(outputs_dir: Path, subj_raw: str):
@@ -263,16 +267,17 @@ def bidsify(outputs_dir: Path, subj_raw: str):
 # ------------- CLI -------------
 def main():
     ap = argparse.ArgumentParser(description="BIDSify QSIPrep inputs from a SINGLE FLAT INPUTS directory (XNAT-style).")
-    ap.add_argument("--dwi_niigz", required=True, nargs='*', help="One or more DWI series, all same PE dir")
-    ap.add_argument("--rep_niigz", required=True, help="Reverse PE DWI series for TOPUP")
+    ap.add_argument("--dwi_niigzs", required=True, nargs='*', help="One or more DWI series, all same PE dir")
+    ap.add_argument("--rpe_niigz", required=True, help="Reverse PE DWI series for TOPUP")
     ap.add_argument("--t1_niigz", required=True, help="T1 image")
     ap.add_argument("--fs_dir", required=True, help="Freesurfer subject directory")
     ap.add_argument("--outputs-dir", required=True, help="OUTPUTS dir (all artifacts go here)")
     ap.add_argument("--subject_label", required=True, help="Original XNAT subject label (will be sanitized for BIDS)")
     args = ap.parse_args()
-    inputs_dir  = Path(args.inputs_dir).resolve()
     outputs_dir = Path(args.outputs_dir).resolve()
-    stage_from_flat_inputs(inputs_dir, outputs_dir)
+    stage_from_flat_inputs(args.dwi_niigzs, args.rpe_niigz, args.t1_niigz, args.fs_dir, outputs_dir)
+    
+    # FIXME WE ARE HERE
     bidsify(outputs_dir, args.subject_label)
 
 if __name__ == "__main__":
