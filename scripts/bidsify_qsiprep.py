@@ -1,4 +1,22 @@
 #!/usr/bin/env python3
+
+# BPR FIXME
+# Take inputs as
+#  --dwi_niigz /path/to/dwi1.nii.gz /path/to/dwi2.nii.gz  [with variable number]
+#  --rpe_niigz /path/to/rpe.nii.gz
+#  --t1_niigz /path/to/t1.nii.gz
+#  --fs_dir  /path/to/SUBJECT
+#
+# Then generate bval/bvec/json filenames from stems of the above.
+#
+# Can we get rid of infer_primary_bval_from_bvalfile, i.e. no assumption about bvals?
+#
+# Shall we require primary pedir as an input instead of trying to guess? Along with assuming
+# DWI/RPE are opposite dir but all the same axis.
+#
+# Ideally don't look at filenames at all.
+
+
 """
 XNAT-friendly BIDSify for QSIPrep (single subject) — FLAT INPUTS ONLY
 
@@ -245,14 +263,17 @@ def bidsify(outputs_dir: Path, subj_raw: str):
 # ------------- CLI -------------
 def main():
     ap = argparse.ArgumentParser(description="BIDSify QSIPrep inputs from a SINGLE FLAT INPUTS directory (XNAT-style).")
-    ap.add_argument("--inputs-dir", required=True, help="Flat INPUTS dir (all files together)")
+    ap.add_argument("--dwi_niigz", required=True, nargs='*', help="One or more DWI series, all same PE dir")
+    ap.add_argument("--rep_niigz", required=True, help="Reverse PE DWI series for TOPUP")
+    ap.add_argument("--t1_niigz", required=True, help="T1 image")
+    ap.add_argument("--fs_dir", required=True, help="Freesurfer subject directory")
     ap.add_argument("--outputs-dir", required=True, help="OUTPUTS dir (all artifacts go here)")
-    ap.add_argument("--subject", required=True, help="XNAT subject label (sanitized to BIDS)")
+    ap.add_argument("--subject_label", required=True, help="Original XNAT subject label (will be sanitized for BIDS)")
     args = ap.parse_args()
     inputs_dir  = Path(args.inputs_dir).resolve()
     outputs_dir = Path(args.outputs_dir).resolve()
     stage_from_flat_inputs(inputs_dir, outputs_dir)
-    bidsify(outputs_dir, args.subject)
+    bidsify(outputs_dir, args.subject_label)
 
 if __name__ == "__main__":
     main()
