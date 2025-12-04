@@ -83,37 +83,12 @@ def save_json(p: Path, obj: dict):
     with p.open('w') as f:
         json.dump(obj, f, indent=2, sort_keys=True); f.write('\n')
 
-PED_MAP = {"AP":"j-","PA":"j"}
-DIR_TOKEN_RE  = re.compile(r"(?:^|[_-])dir-([A-Za-z]{2})(?:[_-]|$)", re.IGNORECASE)
-BVAL_TOKEN_RE = re.compile(r"(?:^|[_-])b(\d{3,5})(?:[^0-9]|$)", re.IGNORECASE)
-ALT_DIR_HINTS = {"app":"AP","apa":"PA","_ap_":"AP","-ap-":"AP","_pa_":"PA","-pa-":"PA"}
-
-def find_dir_from_name(path: Path) -> Optional[str]:
-    m = DIR_TOKEN_RE.search(path.name)
-    if m: return m.group(1).upper()
-    low = f"_{path.name.lower()}_"
-    for hint,val in ALT_DIR_HINTS.items():
-        if hint in low: return val
-    return None
-
-def infer_ped_from_dir(dir_token: Optional[str]) -> Optional[str]:
-    return PED_MAP.get(dir_token.upper()) if dir_token else None
-
-def infer_primary_bval_from_bvalfile(bval_path: Path) -> Optional[str]:
-    if not bval_path.exists(): return None
-    try:
-        vals = [float(x) for x in re.split(r"\s+", bval_path.read_text().strip()) if x.strip()]
-        nz   = [int(round(v)) for v in vals if v > 10]
-        if not nz: return "0"
-        from collections import Counter
-        return str(Counter(nz).most_common(1)[0][0])
-    except Exception:
-        return None
-
 def strict_dwi_bids_name(subj,acq_token,dir_token,suffix):
     return f"{subj}_acq-{acq_token}_dir-{dir_token}_dwi{suffix}"
+
 def strict_fmap_bids_name(subj,acq_token,dir_token,suffix):
     return f"{subj}_acq-{acq_token}_dir-{dir_token}_epi{suffix}"
+
 def strict_t1w_bids_name(subj,suffix):
     return f"{subj}_T1w{suffix}"
 
