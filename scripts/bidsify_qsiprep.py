@@ -199,7 +199,7 @@ def stage_from_flat_inputs(
     for ext in [".nii.gz",".json"]:
         src = dbase / (fbase + ext)
         if src.exists(): 
-            copy_file(dbase / src, t1_out / src.name)
+            copy_file(dbase / src, t1_out / f"t1{ext}")
         else:
             raise Exception(f'Missing input file {dbase / src}')
 
@@ -244,7 +244,9 @@ def bidsify(outputs_dir: Path, subj_raw: str):
         intended_for.append(f"dwi/{out_name}")
 
     # FMAP → ALWAYS BIDS/fmap as *_epi.*
-    niicount = 0
+    # FIXME Something can't be right here, because we are not getting bvals which are needed
+    # to correctly extract b=0 volumes for topup
+    # niicount = 0  # Actually, don't reset this here so we don't get dup acq numbers btwn fwd/rev
     for fmap_nii in sorted(fmap_in.glob("*.nii.gz")):
         niicount = niicount + 1
         base = fmap_nii.name[:-7]
@@ -264,9 +266,13 @@ def bidsify(outputs_dir: Path, subj_raw: str):
     t1 = t1_in / "t1.nii.gz"
     if t1.exists():
         copy_file(t1, subj_root / "anat" / strict_t1w_bids_name(subj, ".nii.gz"))
-        t1_json = t1_in / "t1.json"
-        if t1_json.exists():
-            copy_file(t1_json, subj_root / "anat" / strict_t1w_bids_name(subj, ".json"))
+    else:
+        raise Exception(f"Source nii.gz not found for {src_json}")
+    t1_json = t1_in / "t1.json"
+    if t1_json.exists():
+        copy_file(t1_json, subj_root / "anat" / strict_t1w_bids_name(subj, ".json"))
+    else:
+        raise Exception(f"Source json not found for {src_json}")    
 
     # Dataset-level files
     save_json(bids_root / "dataset_description.json", {"Name":"BIDS dataset","BIDSVersion":"1.9.0","DatasetType":"raw"})
