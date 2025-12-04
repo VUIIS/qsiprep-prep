@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+#
+# Notes:
+#  - Working but makes a lot of filename assumptions
+#  - Uses the fmap dir strategy for distortion correction with intended-for
 """
 XNAT-friendly BIDSify for QSIPrep (single subject) — FLAT INPUTS ONLY
 
