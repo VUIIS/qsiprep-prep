@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# FIXME Do not use fmap approach - all dwi in dwi BIDS dir, with suitable PhaseEncodingDirection
+
 # BPR FIXME
 # Take inputs as
 #  --dwi_niigz /path/to/dwi1.nii.gz /path/to/dwi2.nii.gz  [with variable number]
