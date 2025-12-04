@@ -175,7 +175,7 @@ def stage_from_flat_inputs(
         dbase = rnii.parent
         fbase = rnii.name[:-7]
         for ext in [".nii.gz",".bval",".bvec",".json"]:
-            src = fbase + ext
+            src = dbase / (fbase + ext)
             if src.exists(): 
                 copy_file(dbase / src, dwi_out / src.name)
             else:
@@ -186,7 +186,7 @@ def stage_from_flat_inputs(
     dbase = rnii.parent
     fbase = rnii.name[:-7]
     for ext in [".nii.gz",".bval",".bvec",".json"]:
-        src = fbase + ext
+        src = dbase / (fbase + ext)
         if src.exists(): 
             copy_file(dbase / src, fmap_out / src.name)
         else:
@@ -196,8 +196,8 @@ def stage_from_flat_inputs(
     rnii = Path(t1_niigz).resolve()
     dbase = rnii.parent
     fbase = rnii.name[:-7]
-    for ext in [".nii.gz",".bval",".bvec",".json"]:
-        src = fbase + ext
+    for ext in [".nii.gz",".json"]:
+        src = dbase / (fbase + ext)
         if src.exists(): 
             copy_file(dbase / src, t1_out / src.name)
         else:
