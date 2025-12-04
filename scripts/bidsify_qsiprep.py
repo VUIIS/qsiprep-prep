@@ -9,7 +9,17 @@
 #
 # Then generate bval/bvec/json filenames from stems of the above.
 #
-# Can we get rid of infer_primary_bval_from_bvalfile, i.e. no assumption about bvals?
+# Can we get rid of infer_primary_bval_from_bvalfile, i.e. no assumption about bvals? Main 
+# concern here is that two different DWI series might have the same most common bval,
+# resulting in different dwi series with the same bids filename. E.g. for acq tag, can we 
+# instead use 01, 02, ... based on ordering in the argument list?
+#
+# Regarding dir tag in dwi filename: "The use of generic labels, such as dir-reference and 
+# dir-reversed, is RECOMMENDED to avoid any possible inconsistency." I'd suggest dir-fwd
+# and dir-rev
+#
+# Are we sure epi is the correct type for the fmap rpe, rather than dwi? Does qsiprep correctly
+# find b-0 images in this case?
 #
 # Shall we require primary pedir as an input instead of trying to guess? Along with assuming
 # DWI/RPE are opposite dir but all the same axis.
@@ -100,22 +110,33 @@ def infer_primary_bval_from_bvalfile(bval_path: Path) -> Optional[str]:
     except Exception:
         return None
 
-def strict_dwi_bids_name(subj,bval,dir_token,suffix):  return f"{subj}_acq-b{bval}_dir-{dir_token}_dwi{suffix}"
-def strict_fmap_bids_name(subj,bval,dir_token,suffix): return f"{subj}_acq-b{bval}_dir-{dir_token}_epi{suffix}"
-def strict_t1w_bids_name(subj,suffix):                  return f"{subj}_T1w{suffix}"
+def strict_dwi_bids_name(subj,acq_token,dir_token,suffix):
+    return f"{subj}_acq-{acq_token}_dir-{dir_token}_dwi{suffix}"
+def strict_fmap_bids_name(subj,acq_token,dir_token,suffix):
+    return f"{subj}_acq-{acq_token}_dir-{dir_token}_epi{suffix}"
+def strict_t1w_bids_name(subj,suffix):
+    return f"{subj}_T1w{suffix}"
+
 
 # ------------- JSON edits -------------
-def update_dwi_json(json_path: Path, ped: Optional[str]):
+def update_dwi_json(json_path: Path, reverse_pedir: Optional[bool]):
     meta = load_json(json_path)
     if "EstimatedTotalReadoutTime" in meta:
         if not meta.get("TotalReadoutTime"):
             meta["TotalReadoutTime"] = meta["EstimatedTotalReadoutTime"]
         del meta["EstimatedTotalReadoutTime"]
     if ("PhaseEncodingDirection" not in meta) or (str(meta.get("PhaseEncodingDirection","")).strip()==""):
-        if ped: meta["PhaseEncodingDirection"] = ped
+        if ("PhaseEncodingAxis" not in meta) or (str(meta.get("PhaseEncodingAxis","")).strip()==""):
+            raise Exception("Did not find PhaseEncodingAxis to determine PhaseEncodingDirection")
+        meta["PhaseEncodingDirection"] = meta["PhaseEncodingAxis"]
+        if reverse_pedir:
+            if "-" in meta["PhaseEncodingDirection"]:
+                meta["PhaseEncodingDirection"] = meta["PhaseEncodingDirection"].replace("-","")
+            else:
+                meta["PhaseEncodingDirection"] = meta["PhaseEncodingDirection"] + "-"
     save_json(json_path, meta)
 
-def update_fmap_json(json_path: Path, ped: Optional[str], intended_files: list[str]):
+def update_fmap_json(json_path: Path, reverse_pedir: Optional[bool], intended_files: list[str]):
     meta = load_json(json_path)
     if "EstimatedTotalReadoutTime" in meta:
         if not meta.get("TotalReadoutTime"):
@@ -123,8 +144,16 @@ def update_fmap_json(json_path: Path, ped: Optional[str], intended_files: list[s
         del meta["EstimatedTotalReadoutTime"]
     meta["IntendedFor"] = intended_files
     if ("PhaseEncodingDirection" not in meta) or (str(meta.get("PhaseEncodingDirection","")).strip()==""):
-        if ped: meta["PhaseEncodingDirection"] = ped
+        if ("PhaseEncodingAxis" not in meta) or (str(meta.get("PhaseEncodingAxis","")).strip()==""):
+            raise Exception("Did not find PhaseEncodingAxis to determine PhaseEncodingDirection")
+        meta["PhaseEncodingDirection"] = meta["PhaseEncodingAxis"]
+        if reverse_pedir:
+            if "-" in meta["PhaseEncodingDirection"]:
+                meta["PhaseEncodingDirection"] = meta["PhaseEncodingDirection"].replace("-","")
+            else:
+                meta["PhaseEncodingDirection"] = meta["PhaseEncodingDirection"] + "-"
     save_json(json_path, meta)
+
 
 # ------------- Stage from FLAT → OUTPUTS/INPUTS/... -------------
 def stage_from_flat_inputs(
@@ -196,41 +225,40 @@ def bidsify(outputs_dir: Path, subj_raw: str):
     intended_for = []
 
     # DWI → BIDS/dwi
+    niicount = 0
     for nii in sorted(dwi_in.glob("*.nii.gz")):
+        niicount = niicount + 1
         base = nii.name[:-7]
-        bval = infer_primary_bval_from_bvalfile(dwi_in / (base + ".bval")) or \
-               (BVAL_TOKEN_RE.search(nii.name).group(1) if BVAL_TOKEN_RE.search(nii.name) else "0")
-        dir_token = "AP"
-        ped = infer_ped_from_dir(dir_token)
-        out_name = strict_dwi_bids_name(subj, bval, dir_token, ".nii.gz")
+        dir_token = "fwd"
+        acq_token = f"{niicount:02d}"
+        out_name = strict_dwi_bids_name(subj, acq_token, dir_token, ".nii.gz")
         copy_file(nii, subj_root / "dwi" / out_name)
         for ext in [".bval",".bvec",".json"]:
             src = dwi_in / (base + ext)
-            dst = subj_root / "dwi" / strict_dwi_bids_name(subj, bval, dir_token, ext)
+            dst = subj_root / "dwi" / strict_dwi_bids_name(subj, acq_token, dir_token, ext)
             if src.exists():
                 copy_file(src, dst)
-                if ext == ".json": update_dwi_json(dst, ped)
+                if ext == ".json": update_dwi_json(dst, False)
             elif ext == ".json":
-                save_json(dst, {"PhaseEncodingDirection": ped} if ped else {})
+                raise Exception(f"Source json not found for {src}")
         intended_for.append(f"dwi/{out_name}")
 
     # FMAP → ALWAYS BIDS/fmap as *_epi.*
+    niicount = 0
     for fmap_nii in sorted(fmap_in.glob("*.nii.gz")):
+        niicount = niicount + 1
         base = fmap_nii.name[:-7]
-        bval = infer_primary_bval_from_bvalfile(fmap_in / (base + ".bval")) or \
-               (BVAL_TOKEN_RE.search(fmap_nii.name).group(1) if BVAL_TOKEN_RE.search(fmap_nii.name) else "1000")
-        dir_token = "PA"
-        ped = infer_ped_from_dir(dir_token)
-        out_name = strict_fmap_bids_name(subj, bval, dir_token, ".nii.gz")
+        dir_token = "rev"
+        acq_token = f"{niicount:02d}"
+        out_name = strict_fmap_bids_name(subj, acq_token, dir_token, ".nii.gz")
         copy_file(fmap_nii, subj_root / "fmap" / out_name)
         src_json = fmap_in / (base + ".json")
-        dst_json = subj_root / "fmap" / strict_fmap_bids_name(subj, bval, dir_token, ".json")
+        dst_json = subj_root / "fmap" / strict_fmap_bids_name(subj, acq_token, dir_token, ".json")
         if src_json.exists():
-            copy_file(src_json, dst_json); update_fmap_json(dst_json, ped, intended_for)
+            copy_file(src_json, dst_json)
+            update_fmap_json(dst_json, True, intended_for)
         else:
-            meta = {"IntendedFor": intended_for}
-            if ped: meta["PhaseEncodingDirection"] = ped
-            save_json(dst_json, meta)
+            raise Exception(f"Source json not found for {src_json}")
 
     # T1w
     t1 = t1_in / "t1.nii.gz"
@@ -244,12 +272,14 @@ def bidsify(outputs_dir: Path, subj_raw: str):
     save_json(bids_root / "dataset_description.json", {"Name":"BIDS dataset","BIDSVersion":"1.9.0","DatasetType":"raw"})
     part_tsv = bids_root / "participants.tsv"
     if part_tsv.exists():
-        old = set(x.strip() for x in part_tsv.read_text().splitlines()[1:] if x.strip()); old.add(subj)
+        old = set(x.strip() for x in part_tsv.read_text().splitlines()[1:] if x.strip())
+        old.add(subj)
         rows = sorted(old)
     else:
         rows = [subj]
     with part_tsv.open("w") as f:
-        f.write("participant_id\n"); [f.write(f"{r}\n") for r in rows]
+        f.write("participant_id\n")
+        [f.write(f"{r}\n") for r in rows]
 
     # Subject map
     map_path = outputs_dir / "bids_subject_map.tsv"
@@ -264,6 +294,7 @@ def bidsify(outputs_dir: Path, subj_raw: str):
         f.write("\t".join(header) + "\n")
         for a,b in pairs: f.write(f"{a}\t{b}\n")
 
+
 # ------------- CLI -------------
 def main():
     ap = argparse.ArgumentParser(description="BIDSify QSIPrep inputs from a SINGLE FLAT INPUTS directory (XNAT-style).")
@@ -276,8 +307,6 @@ def main():
     args = ap.parse_args()
     outputs_dir = Path(args.outputs_dir).resolve()
     stage_from_flat_inputs(args.dwi_niigzs, args.rpe_niigz, args.t1_niigz, args.fs_dir, outputs_dir)
-    
-    # FIXME WE ARE HERE
     bidsify(outputs_dir, args.subject_label)
 
 if __name__ == "__main__":
