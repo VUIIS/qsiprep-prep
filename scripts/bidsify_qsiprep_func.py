@@ -177,17 +177,17 @@ def bidsify(args: argparse.Namespace):
         [f.write(f"{r}\n") for r in rows]
 
     # Subject map
-    map_path = bids_root / "bids_subject_map.tsv"
-    if map_path.exists():
-        lines = [ln.strip().split("\t") for ln in map_path.read_text().splitlines() if ln.strip()]
-        header = lines[0] if lines else ["xnat_subject","bids_subject"]
-        existing = {tuple(row) for row in lines[1:]} if len(lines)>1 else set()
-        existing.add((subj_raw, subj)); pairs = sorted(existing)
-    else:
-        header = ["xnat_subject","bids_subject"]; pairs = [(args.subject_label, subj)]
-    with map_path.open("w") as f:
-        f.write("\t".join(header) + "\n")
-        for a,b in pairs: f.write(f"{a}\t{b}\n")
+    #map_path = bids_root / "bids_subject_map.tsv"
+    #if map_path.exists():
+    #    lines = [ln.strip().split("\t") for ln in map_path.read_text().splitlines() if ln.strip()]
+    #    header = lines[0] if lines else ["xnat_subject","bids_subject"]
+    #    existing = {tuple(row) for row in lines[1:]} if len(lines)>1 else set()
+    #    existing.add((subj_raw, subj)); pairs = sorted(existing)
+    #else:
+    #    header = ["xnat_subject","bids_subject"]; pairs = [(args.subject_label, subj)]
+    #with map_path.open("w") as f:
+    #    f.write("\t".join(header) + "\n")
+    #    for a,b in pairs: f.write(f"{a}\t{b}\n")
 
 
 # ------------- CLI -------------
