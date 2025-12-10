@@ -113,6 +113,8 @@ def update_dwi_json(json_path: Path, reverse_pedir: Optional[bool]):
 
 # ------------- Build BIDS -------------
 def bidsify(args: argparse.Namespace):
+    
+    # FIXME Add session to paths and filenames
     subj_clean = sanitize_bids_subj(args.subject_label)
     subj = f"sub-{subj_clean}"
     bids_root = Path(args.out_dir).resolve() / "BIDS"
@@ -199,6 +201,7 @@ def main():
     ap.add_argument("--fs_dir", required=True, help="Freesurfer subject directory")
     ap.add_argument("--out_dir", required=True, help="OUTPUTS dir (all artifacts go here)")
     ap.add_argument("--subject_label", required=True, help="Original XNAT subject label (will be sanitized for BIDS)")
+    ap.add_argument("--session_label", required=True, help="Original XNAT session label (will be sanitized for BIDS)")
     args = ap.parse_args()
     bidsify(args)
 

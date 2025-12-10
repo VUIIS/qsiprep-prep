@@ -1,0 +1,76 @@
+---
+procyamlversion: 3.0.0-dev.0
+
+containers:
+  - name: qsiprep
+    path: qsiprep_1.0.1.sif
+    source: docker://pennlinc/qsiprep:1.0.1
+
+requirements:
+  walltime: 1-0
+  memory: 16G
+jobtemplate: job_template_v3.txt
+
+inputs:
+  xnat:
+    scans:
+
+      - name: scan_t1
+        types: 'cs_T1W_3D_TFE_32 channel'
+        resources:
+          - {resource: NIFTI, fmatch: '*.nii.gz', fcount: 1, fdest: t1.nii.gz, ftype: FILE}
+          - {resource: JSON, fmatch: '*.json', fcount: 1, fdest: t1.json, ftype: FILE}
+
+      - name: scan_dti1
+        types: dti_2min_b1000app_fov140
+        resources:
+          - {resource: NIFTI, fmatch: '*.nii.gz', fcount: 1, fdest: dti1.nii.gz, ftype: FILE}
+          - {resource: JSON, fmatch: '*.json', fcount: 1, fdest: dti1.json, ftype: FILE}
+          - {resource: BVAL, fmatch: '*', fcount: 1, fdest: dti1.bval, ftype: FILE}
+          - {resource: BVEC, fmatch: '*', fcount: 1, fdest: dti1.bvec, ftype: FILE}
+
+      - name: scan_dti2
+        types: dti_2min_b2000app_fov140
+        resources:
+          - {resource: NIFTI, fmatch: '*.nii.gz', fcount: 1, fdest: dti2.nii.gz, ftype: FILE}
+          - {resource: JSON, fmatch: '*.json', fcount: 1, fdest: dti2.json, ftype: FILE}
+          - {resource: BVAL, fmatch: '*', fcount: 1, fdest: dti2.bval, ftype: FILE}
+          - {resource: BVEC, fmatch: '*', fcount: 1, fdest: dti2.bvec, ftype: FILE}
+
+      - name: scan_rpe
+        types: dti_2min_b1000apa_fov140
+        resources:
+          - {resource: NIFTI, fmatch: '*.nii.gz', fcount: 1, fdest: rpe.nii.gz, ftype: FILE}
+          - {resource: JSON, fmatch: '*.json', fcount: 1, fdest: rpe.json, ftype: FILE}
+          - {resource: BVAL, fmatch: '*', fcount: 1, fdest: rpe.bval, ftype: FILE}
+          - {resource: BVEC, fmatch: '*', fcount: 1, fdest: rpe.bvec, ftype: FILE}
+
+    attrs:
+      - {varname: subject, object: session, attr: subject_label}
+      - {varname: session, object: session, attr: label}
+
+outputs:
+  - {path: '.', type: DIR, resource: all_outputs}
+
+command:
+  type: singularity_exec
+  container: qsiprep
+  extraopts: -B /data/mcr/centos7/FS6/license.txt:/opt/freesurfer/license.txt
+  args: >-
+    bash -c '
+    
+    cd /OUTPUTS &&
+    curl -o qsiprep-prep.tar.gz -L https://github.com/VUIIS/qsiprep-prep/archive/refs/tags/v1.0.0.tar.gz &&
+    tar -zxf qsiprep-prep.tar.gz &&
+    export PATH=/OUTPUTS/xcpd-processors-1.0.0/scripts:\$PATH &&
+    
+    bidsify_qsiprep_func.py \
+      --dwi_niigzs /INPUTS/dti1.nii.gz /INPUTS/dti2.nii.gz \
+      --rpe_niigz /INPUTS/rpe.nii.gz \
+      --t1_niigz /INPUTS/t1.nii.gz \
+      --out_dir /OUTPUTS \
+      --subject_label {subject} \
+      --session_label {session}
+
+    '
+
