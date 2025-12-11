@@ -62,7 +62,7 @@ def bidsify(args: argparse.Namespace):
     sess_clean = sanitize_bids_label(args.session_label)
     subj = f"sub-{subj_clean}"
     sess = f"ses-{sess_clean}"
-    bids_root = Path(args.out_dir).resolve() / "BIDS"
+    bids_root = Path(args.out_dir).resolve()
     sess_root = bids_root / subj / sess
     for d in (sess_root/"dwi", sess_root/"anat"): ensure_dir(d)
 

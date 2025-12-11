@@ -52,7 +52,7 @@ inputs:
 outputs:
   - {path: '.', type: DIR, resource: all_outputs}
 
-command:
+pre:
   type: singularity_exec
   container: qsiprep
   extraopts: -B /data/mcr/centos7/FS6/license.txt:/opt/freesurfer/license.txt
@@ -62,15 +62,28 @@ command:
     cd /OUTPUTS &&
     curl -o qsiprep-prep.tar.gz -L https://github.com/VUIIS/qsiprep-prep/archive/refs/tags/v1.0.0.tar.gz &&
     tar -zxf qsiprep-prep.tar.gz &&
-    export PATH=/OUTPUTS/xcpd-processors-1.0.0/scripts:\$PATH &&
+    export PATH=/OUTPUTS/qsiprep-prep-1.0.0/scripts:\$PATH &&
     
     bidsify_qsiprep_func.py \
       --dwi_niigzs /INPUTS/dti1.nii.gz /INPUTS/dti2.nii.gz \
       --rpe_niigz /INPUTS/rpe.nii.gz \
       --t1_niigz /INPUTS/t1.nii.gz \
-      --out_dir /OUTPUTS \
+      --out_dir /OUTPUTS/BIDS_IN \
       --subject_label {subject} \
       --session_label {session}
 
     '
 
+command:
+  type: singularity_run
+  container: qsiprep
+  extraopts: -B /data/mcr/centos7/FS6/license.txt:/opt/freesurfer/license.txt
+  args: >-
+    /OUTPUTS/BIDS_IN
+    /OUTPUTS/BIDS_OUT
+    participant
+    --stop-on-first-crash
+    --b0-threshold 150
+    --denoise-method none
+    --output-resolution 2
+    -w /tmp
