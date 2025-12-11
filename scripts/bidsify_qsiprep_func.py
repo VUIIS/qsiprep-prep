@@ -130,7 +130,6 @@ def main():
     ap.add_argument("--dwi_niigzs", required=True, nargs='*', help="One or more DWI series, all same PE dir")
     ap.add_argument("--rpe_niigz", required=True, help="Reverse PE DWI series for TOPUP")
     ap.add_argument("--t1_niigz", required=True, help="T1 image")
-    ap.add_argument("--fs_dir", required=True, help="Freesurfer subject directory")
     ap.add_argument("--out_dir", required=True, help="OUTPUTS dir (all artifacts go here)")
     ap.add_argument("--subject_label", required=True, help="Original XNAT subject label (will be sanitized for BIDS)")
     ap.add_argument("--session_label", required=True, help="Original XNAT session label (will be sanitized for BIDS)")
