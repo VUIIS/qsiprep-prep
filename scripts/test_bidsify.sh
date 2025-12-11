@@ -8,5 +8,6 @@ bidsify_qsiprep_func.py \
     --t1_niigz $(pwd)/../INPUTS/scans/201_cs_T1W_3D_TFE_32_channel.nii.gz \
     --fs_dir $(pwd)/../INPUTS/freesurfer741_v2/SUBJECT \
     --out_dir $(pwd)/../OUTPUTS \
-    --subject_label 257032
+    --subject_label 257032 \
+    --session_label 257032
 
