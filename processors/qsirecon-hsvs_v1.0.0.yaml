@@ -3,8 +3,8 @@ procyamlversion: 3.0.0-dev.0
 
 containers:
   - name: qsirecon
-    path: qsirecon_1.0.1.sif
-    source: docker://pennlinc/qsirecon:1.0.1
+    path: qsirecon_1.1.1.sif
+    source: docker://pennlinc/qsirecon:1.1.1
 
 requirements:
   walltime: 1-0
@@ -39,6 +39,11 @@ inputs:
         resources:
           - {resource: SUBJECT, ftype: DIR}
 
+    attrs:
+      - {varname: subject, object: session, attr: subject_label}
+      - {varname: session, object: session, attr: label}
+
+
 outputs:
   - {path: '.', type: DIR, resource: all_outputs}
 
@@ -56,7 +61,11 @@ command:
       mv qsiprep-prep-* qsiprep-prep &&
       export PATH=/OUTPUTS/qsiprep-prep/scripts:\$PATH &&
       
-      # FIXME Rename freesurfer dir and move to /OUTPUTS/freesurfer
+      rename_fs_dir.py 
+      --fs_dir /OUTPUTS/SUBJECT/SUBJECT 
+      --subject_label {subject}
+      --session_label {session}
+      --subjects_dir /OUTPUTS/freesurfer
       
       qsirecon /INPUTS/BIDS /OUTPUTS participant
       --input-type qsiprep

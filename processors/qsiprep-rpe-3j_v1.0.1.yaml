@@ -3,8 +3,8 @@ procyamlversion: 3.0.0-dev.0
 
 containers:
   - name: qsiprep
-    path: qsiprep_1.0.1.sif
-    source: docker://pennlinc/qsiprep:1.0.1
+    path: qsiprep_1.0.2.sif
+    source: docker://pennlinc/qsiprep:1.0.2
 
 requirements:
   walltime: 1-0
@@ -68,9 +68,10 @@ pre:
     bash -c '
     
     cd /OUTPUTS &&
-    wget -O qsiprep-prep.tar.gz https://github.com/VUIIS/qsiprep-prep/archive/refs/tags/v1.0.2.tar.gz &&
+    wget -O qsiprep-prep.tar.gz https://github.com/VUIIS/qsiprep-prep/archive/refs/tags/v1.0.3.tar.gz &&
     tar -zxf qsiprep-prep.tar.gz &&
-    export PATH=/OUTPUTS/qsiprep-prep-1.0.2/scripts:\$PATH &&
+    mv qsiprep-prep-* qsiprep-prep &&
+    export PATH=/OUTPUTS/qsiprep-prep/scripts:\$PATH &&
     
     bidsify_qsiprep_func.py \
       --dwi_niigzs /INPUTS/dti1.nii.gz /INPUTS/dti2.nii.gz \
