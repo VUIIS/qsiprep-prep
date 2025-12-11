@@ -17,12 +17,16 @@ inputs:
 
       - name: scan_t1
         types: 'cs_T1W_3D_TFE_32 channel'
+        skip_unusable: True
+        keep_multis: first
         resources:
           - {resource: NIFTI, fmatch: '*.nii.gz', fcount: 1, fdest: t1.nii.gz, ftype: FILE}
           - {resource: JSON, fmatch: '*.json', fcount: 1, fdest: t1.json, ftype: FILE}
 
       - name: scan_dti1
         types: dti_2min_b1000app_fov140
+        skip_unusable: True
+        keep_multis: first
         resources:
           - {resource: NIFTI, fmatch: '*.nii.gz', fcount: 1, fdest: dti1.nii.gz, ftype: FILE}
           - {resource: JSON, fmatch: '*.json', fcount: 1, fdest: dti1.json, ftype: FILE}
@@ -31,6 +35,8 @@ inputs:
 
       - name: scan_dti2
         types: dti_2min_b2000app_fov140
+        skip_unusable: True
+        keep_multis: first
         resources:
           - {resource: NIFTI, fmatch: '*.nii.gz', fcount: 1, fdest: dti2.nii.gz, ftype: FILE}
           - {resource: JSON, fmatch: '*.json', fcount: 1, fdest: dti2.json, ftype: FILE}
@@ -39,6 +45,8 @@ inputs:
 
       - name: scan_rpe
         types: dti_2min_b1000apa_fov140
+        skip_unusable: True
+        keep_multis: first
         resources:
           - {resource: NIFTI, fmatch: '*.nii.gz', fcount: 1, fdest: rpe.nii.gz, ftype: FILE}
           - {resource: JSON, fmatch: '*.json', fcount: 1, fdest: rpe.json, ftype: FILE}
