@@ -8,7 +8,8 @@ containers:
 
 requirements:
   walltime: 1-0
-  memory: 16G
+  ppn: 4
+  memory: 64G
 jobtemplate: job_template_v3.txt
 
 inputs:
@@ -58,7 +59,9 @@ inputs:
       - {varname: session, object: session, attr: label}
 
 outputs:
-  - {path: '.', type: DIR, resource: all_outputs}
+  - {path: BIDS_IN, type: DIR, resource: BIDS_IN}
+  - {path: BIDS_OUT, type: DIR, resource: BIDS_OUT}
+  - {path: qsiprep-prep, type: DIR, resource: SCRIPTS}
 
 pre:
   type: singularity_exec
@@ -68,7 +71,7 @@ pre:
     bash -c '
     
     cd /OUTPUTS &&
-    wget -O qsiprep-prep.tar.gz https://github.com/VUIIS/qsiprep-prep/archive/refs/tags/v1.0.5.tar.gz &&
+    wget -O qsiprep-prep.tar.gz https://github.com/VUIIS/qsiprep-prep/archive/refs/tags/v1.0.6.tar.gz &&
     tar -zxf qsiprep-prep.tar.gz &&
     mv qsiprep-prep-* qsiprep-prep &&
     export PATH=/OUTPUTS/qsiprep-prep/scripts:\$PATH &&
@@ -96,3 +99,4 @@ command:
     --denoise-method none
     --output-resolution 2
     -w /tmp
+    --nprocs 4 --omp-nthreads 4 --mem 60000
