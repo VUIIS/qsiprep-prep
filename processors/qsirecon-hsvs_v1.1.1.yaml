@@ -7,8 +7,9 @@ containers:
     source: docker://pennlinc/qsirecon:1.1.1
 
 requirements:
-  walltime: 1-0
-  memory: 16G
+  walltime: 2-0
+  ppn: 4
+  memory: 32G
 jobtemplate: job_template_v3.txt
 
 inputs:
@@ -32,7 +33,7 @@ inputs:
       - name: assr_qsiprep
         types: qsiprep-rpe-3j_v1
         resources:
-          - {resource: FIXME, fdest: FIXME, ftype: DIR}
+          - {resource: BIDS_OUT, fdest: BIDS, ftype: DIR}
 
       - name: assr_freesurfer
         types: freesurfer741_v2
@@ -56,7 +57,7 @@ command:
     bash -c '
       
       cd /OUTPUTS &&
-      wget -O qsiprep-prep.tar.gz https://github.com/VUIIS/qsiprep-prep/archive/refs/tags/v1.0.5.tar.gz &&
+      wget -O qsiprep-prep.tar.gz https://github.com/VUIIS/qsiprep-prep/archive/refs/tags/v1.0.7.tar.gz &&
       tar -zxf qsiprep-prep.tar.gz &&
       mv qsiprep-prep-* qsiprep-prep &&
       export PATH=/OUTPUTS/qsiprep-prep/scripts:\$PATH &&
@@ -67,7 +68,7 @@ command:
       --session_label {session}
       --subjects_dir /OUTPUTS/freesurfer
       
-      qsirecon /INPUTS/BIDS /OUTPUTS participant
+      qsirecon /INPUTS/BIDS/BIDS /OUTPUTS participant
       --input-type qsiprep
       --recon-spec /OUTPUTS/qsiprep-prep/qsirecon_specs/mrtrix_hsvs.yaml
       --fs-subjects-dir /OUTPUTS/freesurfer
@@ -75,9 +76,10 @@ command:
       --datasets /OUTPUTS/qsiprep-prep/atlases
       --atlases MMPthalTian
       --output-resolution 2.0
-      -w /work
+      -w /tmp
       --stop-on-first-crash
       -v -v
+      --nprocs 4 --omp-nthreads 4 --mem 30000
 
     '
 
