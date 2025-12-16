@@ -7,13 +7,13 @@ containers:
     path: bash_latest.sif
     source: docker://bash
   - name: qsiprep
-    path: qsiprep_1.0.2.sif
-    source: docker://pennlinc/qsiprep:1.0.2
+    path: qsiprep_1.0.1.sif
+    source: docker://pennlinc/qsiprep:1.0.1
 
 requirements:
   walltime: 1-0
   ppn: 4
-  memory: 64G
+  memory: 20G
 jobtemplate: job_template_v3.txt
 
 inputs:
