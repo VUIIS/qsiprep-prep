@@ -63,7 +63,7 @@ command:
       export PATH=/OUTPUTS/qsiprep-prep/scripts:\$PATH &&
       
       rename_fs_dir.py 
-      --fs_dir /OUTPUTS/SUBJECT/SUBJECT 
+      --fs_dir /INPUTS/SUBJECT/SUBJECT 
       --subject_label {subject}
       --session_label {session}
       --subjects_dir /OUTPUTS/freesurfer &&
