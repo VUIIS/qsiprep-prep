@@ -33,7 +33,7 @@ inputs:
       - name: assr_qsiprep
         types: qsiprep-rpe-3j_v1
         resources:
-          - {resource: BIDS_OUT, fdest: BIDS, ftype: DIR}
+          - {resource: BIDS_OUT, fdest: BIDS_OUT, ftype: DIR}
 
       - name: assr_freesurfer
         types: freesurfer741_v2
@@ -68,7 +68,7 @@ command:
       --session_label {session}
       --subjects_dir /OUTPUTS/freesurfer &&
       
-      qsirecon /INPUTS/BIDS/BIDS /OUTPUTS participant
+      qsirecon /INPUTS/BIDS_OUT/BIDS_OUT /OUTPUTS participant
       --input-type qsiprep
       --recon-spec /OUTPUTS/qsiprep-prep/qsirecon_specs/mrtrix_hsvs.yaml
       --fs-subjects-dir /OUTPUTS/freesurfer
