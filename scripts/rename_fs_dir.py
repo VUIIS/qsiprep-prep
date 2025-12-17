@@ -26,7 +26,7 @@ def main():
     sess = f"ses-{sess_clean}"
     fs_root = Path(args.subjects_dir).resolve()
     sess_root = fs_root / subj / sess
-    ensure_dir(sess_root)
+    ensure_dir(sess_root.parent)
     shutil.copytree(Path(args.fs_dir).resolve(), sess_root)
 
 if __name__ == "__main__":
