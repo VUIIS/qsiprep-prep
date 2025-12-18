@@ -96,7 +96,7 @@ command:
       /OUTPUTS/rpeb0.nii.gz
     &&
     
-    cp /INPUTS/rpe.json /OUTPUTS/repb0.json
+    cp /INPUTS/rpe.json /OUTPUTS/rpeb0.json
     &&
     
     bidsify_qsiprep_fmap.py
