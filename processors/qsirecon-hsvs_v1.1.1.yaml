@@ -60,13 +60,14 @@ command:
       wget -O qsiprep-prep.tar.gz https://github.com/VUIIS/qsiprep-prep/archive/refs/tags/v1.0.8.tar.gz &&
       tar -zxf qsiprep-prep.tar.gz &&
       mv qsiprep-prep-* qsiprep-prep &&
-      export PATH=/OUTPUTS/qsiprep-prep/scripts:\$PATH &&
+      export PATH=/OUTPUTS/qsiprep-prep/scripts:\$PATH
+      &&
       
       rename_fs_dir.py 
       --fs_dir /INPUTS/SUBJECT/SUBJECT 
       --subject_label {subject}
-      --session_label {session}
-      --subjects_dir /OUTPUTS/freesurfer &&
+      --subjects_dir /OUTPUTS/freesurfer
+      &&
       
       qsirecon /INPUTS/BIDS_OUT/BIDS_OUT /OUTPUTS participant
       --input-type qsiprep

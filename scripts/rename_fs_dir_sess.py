@@ -16,15 +16,18 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--fs_dir", required=True)
     ap.add_argument("--subject_label", required=True)
+    ap.add_argument("--session_label", required=True)
     ap.add_argument("--subjects_dir", required=True)
     args = ap.parse_args()
 
     subj_clean = sanitize_bids_label(args.subject_label)
+    sess_clean = sanitize_bids_label(args.session_label)
     subj = f"sub-{subj_clean}"
+    sess = f"ses-{sess_clean}"
     fs_root = Path(args.subjects_dir).resolve()
-    subj_root = fs_root / subj
-    ensure_dir(subj_root.parent)
-    shutil.copytree(Path(args.fs_dir).resolve(), subj_root)
+    sess_root = fs_root / subj / sess
+    ensure_dir(sess_root.parent)
+    shutil.copytree(Path(args.fs_dir).resolve(), sess_root)
 
 if __name__ == "__main__":
     main()
