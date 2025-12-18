@@ -38,10 +38,6 @@ def strict_epi_bids_name(subj, sess, acq_token, dir_token, ext):
 def strict_t1w_bids_name(subj, sess, ext):
     return f"{subj}_{sess}_T1w{ext}"
 
-# ------------- Extract b=0 image ------
-def extract_b0(fpath: Path):
-    # FIXME find dwi, json, bvec, bval and extract first b=0 vol
-
 
 # ------------- JSON edits -------------
 def update_dwi_json(json_path: Path, reverse_pedir: Optional[bool]):
@@ -90,8 +86,8 @@ def bidsify(args: argparse.Namespace):
             else:
                 raise Exception(f"Source file not found for {src}")
 
-    # RPE -> BIDS/fmap
-    niistr = args.rpe_niigz
+    # RPE -> BIDS/fmap - requires b=0 image only
+    niistr = args.rpeb0_niigz
     niicount = niicount + 1
     nii = Path(niistr).resolve()
     base = nii.name[:-7]
@@ -105,7 +101,6 @@ def bidsify(args: argparse.Namespace):
             if ext == ".json": update_dwi_json(dst, reverse_pedir=True)
         else:
             raise Exception(f"Source file not found for {src}")
-    extract_b0(dst)
 
     # T1w
     nii = Path(args.t1_niigz).resolve()
@@ -136,7 +131,7 @@ def bidsify(args: argparse.Namespace):
 def main():
     ap = argparse.ArgumentParser(description="BIDSify QSIPrep inputs from a SINGLE FLAT INPUTS directory (XNAT-style).")
     ap.add_argument("--dwi_niigzs", required=True, nargs='*', help="One or more DWI series, all same PE dir")
-    ap.add_argument("--rpe_niigz", required=True, help="Reverse PE DWI series for TOPUP")
+    ap.add_argument("--rpeb0_niigz", required=True, help="Reverse PE DWI series for TOPUP")
     ap.add_argument("--t1_niigz", required=True, help="T1 image")
     ap.add_argument("--out_dir", required=True, help="OUTPUTS dir (all artifacts go here)")
     ap.add_argument("--subject_label", required=True, help="Original XNAT subject label (will be sanitized for BIDS)")
