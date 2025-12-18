@@ -73,7 +73,7 @@ pre:
   args: >-
     bash -c '
       cd /OUTPUTS &&
-      wget -O qsiprep-prep.tar.gz https://github.com/VUIIS/qsiprep-prep/archive/refs/tags/v1.0.6.tar.gz &&
+      wget -O qsiprep-prep.tar.gz https://github.com/VUIIS/qsiprep-prep/archive/refs/tags/v1.1.0.tar.gz &&
       tar -zxf qsiprep-prep.tar.gz &&
       mv qsiprep-prep-* qsiprep-prep
     '
