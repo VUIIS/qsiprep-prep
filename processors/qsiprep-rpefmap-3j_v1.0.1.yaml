@@ -101,7 +101,7 @@ command:
     
     bidsify_qsiprep_fmap.py
       --dwi_niigzs /INPUTS/dti1.nii.gz /INPUTS/dti2.nii.gz
-      --rpe_niigz /OUTPUTS/rpeb0.nii.gz
+      --rpeb0_niigz /OUTPUTS/rpeb0.nii.gz
       --t1_niigz /INPUTS/t1.nii.gz
       --out_dir /OUTPUTS/BIDS_IN
       --subject_label {subject}
