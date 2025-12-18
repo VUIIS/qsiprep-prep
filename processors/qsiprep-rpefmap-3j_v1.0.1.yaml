@@ -112,7 +112,7 @@ command:
       participant
       --stop-on-first-crash
       --b0-threshold 150
-      --denoise-method none
+      --denoise-method dwidenoise
       --output-resolution 2
       -w /tmp
       --nprocs 4 --omp-nthreads 4 --mem 60000
