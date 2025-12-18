@@ -13,7 +13,7 @@ containers:
 requirements:
   walltime: 1-0
   ppn: 4
-  memory: 20G
+  memory: 24G
 jobtemplate: job_template_v3.txt
 
 inputs:
@@ -94,6 +94,8 @@ command:
       -export_grad_fsl /OUTPUTS/rpeb0.bvec /OUTPUTS/rpeb0.bval
       /INPUTS/rpe.nii.gz
       /OUTPUTS/rpeb0.nii.gz
+    &&
+    
     cp /INPUTS/rpe.json /OUTPUTS/repb0.json
     &&
     
@@ -115,6 +117,6 @@ command:
       --denoise-method dwidenoise
       --output-resolution 2
       -w /tmp
-      --nprocs 4 --omp-nthreads 4 --mem 60000
+      --nprocs 4 --omp-nthreads 4 --mem 22000
 
     '
