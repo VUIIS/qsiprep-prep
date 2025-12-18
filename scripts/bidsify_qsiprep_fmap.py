@@ -86,14 +86,14 @@ def bidsify(args: argparse.Namespace):
             else:
                 raise Exception(f"Source file not found for {src}")
 
-    # RPE -> BIDS/fmap - requires b=0 image only
+    # RPE -> BIDS/fmap - requires b=0 image only, and no bval/bvec for epi type
     niistr = args.rpeb0_niigz
     niicount = niicount + 1
     nii = Path(niistr).resolve()
     base = nii.name[:-7]
     dir_token = "rev"
     acq_token = f"{niicount:02d}"
-    for ext in [".nii.gz", ".bval", ".bvec", ".json"]:
+    for ext in [".nii.gz", ".json"]:
         src = nii.parent / (base + ext)
         dst = sess_root / "fmap" / strict_epi_bids_name(subj, sess, acq_token, dir_token, ext)
         if src.exists():
