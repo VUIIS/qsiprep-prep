@@ -40,7 +40,7 @@ def strict_t1w_bids_name(subj, sess, ext):
 
 
 # ------------- JSON edits -------------
-def update_dwi_json(json_path: Path, reverse_pedir: Optional[bool]):
+def update_dwi_json(json_path: Path, reverse_pedir: Optional[bool], intended_for: Optional[str]):
     meta = load_json(json_path)
     if "EstimatedTotalReadoutTime" in meta:
         if not meta.get("TotalReadoutTime"):
@@ -55,6 +55,8 @@ def update_dwi_json(json_path: Path, reverse_pedir: Optional[bool]):
                 meta["PhaseEncodingDirection"] = meta["PhaseEncodingDirection"].replace("-","")
             else:
                 meta["PhaseEncodingDirection"] = meta["PhaseEncodingDirection"] + "-"
+    if intended_for:
+        meta["IntendedFor"] = intended_for
     save_json(json_path, meta)
 
 
@@ -71,6 +73,7 @@ def bidsify(args: argparse.Namespace):
 
     # DWI → BIDS/dwi
     niicount = 0
+    intended_for = []
     for niistr in args.dwi_niigzs:
         niicount = niicount + 1
         nii = Path(niistr).resolve()
@@ -79,10 +82,12 @@ def bidsify(args: argparse.Namespace):
         acq_token = f"{niicount:02d}"
         for ext in [".nii.gz", ".bval", ".bvec", ".json"]:
             src = nii.parent / (base + ext)
-            dst = sess_root / "dwi" / strict_dwi_bids_name(subj, sess, acq_token, dir_token, ext)
+            out_name = strict_dwi_bids_name(subj, sess, acq_token, dir_token, ext)
+            dst = sess_root / "dwi" / out_name
             if src.exists():
                 copy_file(src, dst)
                 if ext == ".json": update_dwi_json(dst, reverse_pedir=False)
+                elif ext == ".nii.gz": intended_for.append(f"dwi/{out_name}")
             else:
                 raise Exception(f"Source file not found for {src}")
 
