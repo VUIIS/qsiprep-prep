@@ -86,7 +86,7 @@ def bidsify(args: argparse.Namespace):
             dst = sess_root / "dwi" / out_name
             if src.exists():
                 copy_file(src, dst)
-                if ext == ".json": update_dwi_json(dst, reverse_pedir=False)
+                if ext == ".json": update_dwi_json(dst, reverse_pedir=False, intended_for='')
                 elif ext == ".nii.gz": intended_for.append(f"dwi/{out_name}")
             else:
                 raise Exception(f"Source file not found for {src}")
@@ -103,7 +103,7 @@ def bidsify(args: argparse.Namespace):
         dst = sess_root / "fmap" / strict_epi_bids_name(subj, sess, acq_token, dir_token, ext)
         if src.exists():
             copy_file(src, dst)
-            if ext == ".json": update_dwi_json(dst, reverse_pedir=True)
+            if ext == ".json": update_dwi_json(dst, reverse_pedir=True, intended_for=intended_for)
         else:
             raise Exception(f"Source file not found for {src}")
 
