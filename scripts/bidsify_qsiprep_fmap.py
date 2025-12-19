@@ -87,7 +87,7 @@ def bidsify(args: argparse.Namespace):
             if src.exists():
                 copy_file(src, dst)
                 if ext == ".json": update_dwi_json(dst, reverse_pedir=False, intended_for='')
-                elif ext == ".nii.gz": intended_for.append(f"dwi/{out_name}")
+                elif ext == ".nii.gz": intended_for.append(f"{sess}/dwi/{out_name}")
             else:
                 raise Exception(f"Source file not found for {src}")
 
