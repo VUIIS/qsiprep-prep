@@ -1,6 +1,6 @@
 {
-    "BIDSVersion": "1.7.0",
-    "DatasetType": "derivative",
     "Name": "Custom atlases for qsirecon",
+    "BIDSVersion": "1.9.0",
+    "DatasetType": "atlas",
     "GeneratedBy": "VUIIS"
 }
