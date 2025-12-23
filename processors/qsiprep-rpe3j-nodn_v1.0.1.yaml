@@ -1,0 +1,122 @@
+---
+procyamlversion: 3.0.0-dev.0
+
+containers:
+containers:
+  - name: bash
+    path: bash_latest.sif
+    source: docker://bash
+  - name: qsiprep
+    path: qsiprep_1.0.1.sif
+    source: docker://pennlinc/qsiprep:1.0.1
+
+requirements:
+  walltime: 1-0
+  ppn: 4
+  memory: 24G
+jobtemplate: job_template_v3.txt
+
+inputs:
+  xnat:
+    scans:
+
+      - name: scan_t1
+        types: 'cs_T1W_3D_TFE_32 channel'
+        skip_unusable: True
+        keep_multis: first
+        resources:
+          - {resource: NIFTI, fmatch: '*.nii.gz', fcount: 1, fdest: t1.nii.gz, ftype: FILE}
+          - {resource: JSON, fmatch: '*.json', fcount: 1, fdest: t1.json, ftype: FILE}
+
+      - name: scan_dti1
+        types: dti_2min_b1000app_fov140
+        skip_unusable: True
+        keep_multis: first
+        resources:
+          - {resource: NIFTI, fmatch: '*.nii.gz', fcount: 1, fdest: dti1.nii.gz, ftype: FILE}
+          - {resource: JSON, fmatch: '*.json', fcount: 1, fdest: dti1.json, ftype: FILE}
+          - {resource: BVAL, fmatch: '*', fcount: 1, fdest: dti1.bval, ftype: FILE}
+          - {resource: BVEC, fmatch: '*', fcount: 1, fdest: dti1.bvec, ftype: FILE}
+
+      - name: scan_dti2
+        types: dti_2min_b2000app_fov140
+        skip_unusable: True
+        keep_multis: first
+        resources:
+          - {resource: NIFTI, fmatch: '*.nii.gz', fcount: 1, fdest: dti2.nii.gz, ftype: FILE}
+          - {resource: JSON, fmatch: '*.json', fcount: 1, fdest: dti2.json, ftype: FILE}
+          - {resource: BVAL, fmatch: '*', fcount: 1, fdest: dti2.bval, ftype: FILE}
+          - {resource: BVEC, fmatch: '*', fcount: 1, fdest: dti2.bvec, ftype: FILE}
+
+      - name: scan_rpe
+        types: dti_2min_b1000apa_fov140
+        skip_unusable: True
+        keep_multis: first
+        resources:
+          - {resource: NIFTI, fmatch: '*.nii.gz', fcount: 1, fdest: rpe.nii.gz, ftype: FILE}
+          - {resource: JSON, fmatch: '*.json', fcount: 1, fdest: rpe.json, ftype: FILE}
+          - {resource: BVAL, fmatch: '*', fcount: 1, fdest: rpe.bval, ftype: FILE}
+          - {resource: BVEC, fmatch: '*', fcount: 1, fdest: rpe.bvec, ftype: FILE}
+
+    attrs:
+      - {varname: subject, object: session, attr: subject_label}
+      - {varname: session, object: session, attr: label}
+
+outputs:
+  - {path: BIDS_IN, type: DIR, resource: BIDS_IN}
+  - {path: BIDS_OUT, type: DIR, resource: BIDS_OUT}
+  - {path: qsiprep-prep, type: DIR, resource: SCRIPTS}
+
+pre:
+  type: singularity_exec
+  container: bash
+  args: >-
+    bash -c '
+      cd /OUTPUTS &&
+      wget -O qsiprep-prep.tar.gz https://github.com/VUIIS/qsiprep-prep/archive/refs/tags/v1.1.8.tar.gz &&
+      tar -zxf qsiprep-prep.tar.gz &&
+      mv qsiprep-prep-* qsiprep-prep
+    '
+
+command:
+  type: singularity_exec
+  container: qsiprep
+  extraopts: -B /data/mcr/centos7/FS6/license.txt:/opt/freesurfer/license.txt
+  args: >-
+    bash -c '
+    
+    export PATH=/OUTPUTS/qsiprep-prep/scripts:\$PATH
+    &&
+    
+    dwiextract 
+      -bzero 
+      -fslgrad /INPUTS/rpe.bvec /INPUTS/rpe.bval 
+      -export_grad_fsl /OUTPUTS/rpeb0.bvec /OUTPUTS/rpeb0.bval
+      /INPUTS/rpe.nii.gz
+      /OUTPUTS/rpeb0.nii.gz
+    &&
+    
+    cp /INPUTS/rpe.json /OUTPUTS/rpeb0.json
+    &&
+    
+    bidsify_qsiprep_fmap.py
+      --dwi_niigzs /INPUTS/dti1.nii.gz /INPUTS/dti2.nii.gz
+      --rpeb0_niigz /OUTPUTS/rpeb0.nii.gz
+      --t1_niigz /INPUTS/t1.nii.gz
+      --out_dir /OUTPUTS/BIDS_IN
+      --subject_label {subject}
+      --session_label {session}
+    &&
+
+    qsiprep
+      /OUTPUTS/BIDS_IN
+      /OUTPUTS/BIDS_OUT
+      participant
+      --stop-on-first-crash
+      --b0-threshold 150
+      --denoise-method none
+      --output-resolution 2
+      -w /tmp
+      --nprocs 4 --omp-nthreads 4 --mem 22000
+
+    '
