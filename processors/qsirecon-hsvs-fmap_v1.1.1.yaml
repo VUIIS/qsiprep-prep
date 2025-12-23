@@ -1,0 +1,86 @@
+---
+procyamlversion: 3.0.0-dev.0
+
+containers:
+  - name: qsirecon
+    path: qsirecon_1.1.1.sif
+    source: docker://pennlinc/qsirecon:1.1.1
+
+requirements:
+  walltime: 2-0
+  ppn: 4
+  memory: 32G
+jobtemplate: job_template_v3.txt
+
+inputs:
+  xnat:
+    
+    filters:
+      - type: match
+        inputs: scan_t1,assr_freesurfer/scan_t1
+      - type: match
+        inputs: scan_t1,assr_qsiprep/scan_t1    
+    
+    scans:
+      
+      - name: scan_t1
+        types: 'cs_T1W_3D_TFE_32 channel'
+        skip_unusable: True
+        keep_multis: first
+      
+    assessors:
+
+      - name: assr_qsiprep
+        types: qsiprep-rpefmap-3j_v1
+        resources:
+          - {resource: BIDS_OUT, fdest: BIDS_OUT, ftype: DIR}
+
+      - name: assr_freesurfer
+        types: freesurfer741_v2
+        resources:
+          - {resource: SUBJECT, ftype: DIR}
+
+    attrs:
+      - {varname: subject, object: session, attr: subject_label}
+      - {varname: session, object: session, attr: label}
+
+
+outputs:
+  - {path: '.', type: DIR, resource: all_outputs}
+
+
+command:
+  type: singularity_exec
+  container: qsirecon
+  extraopts: -B /data/mcr/centos7/FS6/license.txt:/opt/freesurfer/license.txt
+  args: >-
+    bash -c '
+      
+      cd /OUTPUTS &&
+      wget -O qsiprep-prep.tar.gz https://github.com/VUIIS/qsiprep-prep/archive/refs/tags/v1.1.7.tar.gz &&
+      tar -zxf qsiprep-prep.tar.gz &&
+      mv qsiprep-prep-* qsiprep-prep &&
+      export PATH=/OUTPUTS/qsiprep-prep/scripts:\$PATH
+      &&
+      
+      rename_fs_dir.py 
+      --fs_dir /INPUTS/SUBJECT/SUBJECT 
+      --subject_label {subject}
+      --subjects_dir /OUTPUTS/freesurfer
+      &&
+      
+      qsirecon /INPUTS/BIDS_OUT/BIDS_OUT /OUTPUTS participant
+      --input-type qsiprep
+      --recon-spec /OUTPUTS/qsiprep-prep/qsirecon_specs/mrtrix_hsvs.yaml
+      --fs-subjects-dir /OUTPUTS/freesurfer
+      --fs-license-file /opt/freesurfer/license.txt
+      --datasets /OUTPUTS/qsiprep-prep/atlases
+      --atlases MMPthalTian
+      --output-resolution 2.0
+      -w /tmp
+      --stop-on-first-crash
+      -v -v
+      --nprocs 4 --omp-nthreads 4 --mem 30000
+
+    '
+
