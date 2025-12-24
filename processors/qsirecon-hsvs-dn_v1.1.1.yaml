@@ -69,7 +69,7 @@ command:
       --subjects_dir /OUTPUTS/freesurfer
       &&
       
-      qsirecon /INPUTS/BIDS_OUT/BIDS_OUT /OUTPUTS participant
+      qsirecon /INPUTS/BIDS_OUT/BIDS_OUT /OUTPUTS/BIDS_RECON participant
       --input-type qsiprep
       --recon-spec /OUTPUTS/qsiprep-prep/qsirecon_specs/mrtrix_hsvs.yaml
       --fs-subjects-dir /OUTPUTS/freesurfer
