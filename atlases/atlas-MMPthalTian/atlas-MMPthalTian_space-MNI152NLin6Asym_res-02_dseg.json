@@ -1,0 +1,13 @@
+{
+  "SpatialReference": "MNI152NLin6Asym",
+  "Resolution": "res-02",
+  "LabelMap": "dseg",
+  "Description": "Custom stitched atlas HCPMMP1plusTHOMAS (HCP-MMP1 + THOMAS nuclei)",
+  "GeneratedBy": [
+    {
+      "Name": "https://github.com/VUIIS/xcpd-processors/tree/main/atlases-devel/atlas-MMPthalTian",
+      "Date": "2025-09-08"
+    }
+  ],
+  "Notes": "HCP-MMP1 cortical + THOMAS thalamic stitched in subject space, warped to MNI with antsApplyTransforms."
+}
