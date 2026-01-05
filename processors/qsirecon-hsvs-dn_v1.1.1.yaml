@@ -8,7 +8,7 @@ containers:
 
 requirements:
   walltime: 2-0
-  ppn: 4
+  ppn: 1
   memory: 32G
 jobtemplate: job_template_v3.txt
 
@@ -46,7 +46,8 @@ inputs:
 
 
 outputs:
-  - {path: '.', type: DIR, resource: all_outputs}
+  - {path: BIDS_RECON, type: DIR, resource: BIDS_RECON}
+  - {path: qsiprep-prep, type: DIR, resource: SCRIPTS}
 
 
 command:
@@ -57,7 +58,7 @@ command:
     bash -c '
       
       cd /OUTPUTS &&
-      wget -O qsiprep-prep.tar.gz https://github.com/VUIIS/qsiprep-prep/archive/refs/tags/v1.1.8.tar.gz &&
+      wget -O qsiprep-prep.tar.gz https://github.com/VUIIS/qsiprep-prep/archive/refs/tags/v1.1.10.tar.gz &&
       tar -zxf qsiprep-prep.tar.gz &&
       mv qsiprep-prep-* qsiprep-prep &&
       export PATH=/OUTPUTS/qsiprep-prep/scripts:\$PATH
@@ -76,11 +77,13 @@ command:
       --fs-license-file /opt/freesurfer/license.txt
       --datasets /OUTPUTS/qsiprep-prep/atlases
       --atlases MMPthalTian
-      --output-resolution 2.0
-      -w /tmp
+      --work-dir /tmp
       --stop-on-first-crash
-      -v -v
-      --nprocs 4 --omp-nthreads 4 --mem 30000
+      --verbose --verbose
+      --mem 30000
+      &&
+      
+      rm /OUTPUTS/BIDS_RECON/derivatives/qsirecon-MRtrix3_act-HSVS/sub-*/ses-*/dwi/*_streamlines.tck.gz
 
     '
 
